@@ -246,7 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
                 child: Container(
-                  height: 200,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -259,26 +258,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Avatar
                           CircleAvatar(
-                            radius: 40,
+                            radius: 30,
                             backgroundColor: Colors.white,
                             child:
                                 authProvider.driver?.avatar?.isNotEmpty == true
                                     ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(40),
+                                        borderRadius: BorderRadius.circular(30),
                                         child: Image.network(
                                           authProvider.driver!.avatar!,
-                                          width: 80,
-                                          height: 80,
+                                          width: 60,
+                                          height: 60,
                                           fit: BoxFit.cover,
                                           errorBuilder:
                                               (context, error, stackTrace) {
                                             return Icon(
                                               Icons.person,
-                                              size: 40,
+                                              size: 30,
                                               color: Colors.green.shade700,
                                             );
                                           },
@@ -286,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       )
                                     : Icon(
                                         Icons.person,
-                                        size: 40,
+                                        size: 30,
                                         color: Colors.green.shade700,
                                       ),
                           ),
@@ -296,9 +296,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             authProvider.driver?.name ?? 'Trương Xuân Kiên',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
                           // Phone
@@ -306,8 +308,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             authProvider.driver?.phoneNumber ?? '',
                             style: const TextStyle(
                               color: Colors.white70,
-                              fontSize: 14,
+                              fontSize: 12,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 8),
                           // Tap hint
@@ -315,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             '✏️ Nhấn để xem chi tiết',
                             style: const TextStyle(
                               color: Colors.white60,
-                              fontSize: 12,
+                              fontSize: 11,
                               fontStyle: FontStyle.italic,
                             ),
                           ),
