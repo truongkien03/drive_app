@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "999344200783",
+    "firebase_url": "https://appecommerce-d6bc7-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "appecommerce-d6bc7",
+    "storage_bucket": "appecommerce-d6bc7.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:999344200783:android:b5fc4eadd5584d5ac29e3a",
+        "android_client_info": {
+          "package_name": "com.company.drive_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfgy7x1oYMMH8QcxCn0zMosFM7fEj2ffk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:999344200783:android:c1429cca4462e2b7c29e3a",
+        "android_client_info": {
+          "package_name": "com.example.ecommerceflutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfgy7x1oYMMH8QcxCn0zMosFM7fEj2ffk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:999344200783:android:6f7ce362a700d1cfc29e3a",
+        "android_client_info": {
+          "package_name": "com.example.ecommercettl"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfgy7x1oYMMH8QcxCn0zMosFM7fEj2ffk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
