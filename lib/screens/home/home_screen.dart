@@ -128,62 +128,63 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // Status card overlay
+              // Status card overlay - Thu nhỏ và di chuyển xuống thấp hơn
               Positioned(
-                bottom: 100,
+                bottom: 140,
                 left: 16,
                 right: 16,
                 child: Card(
-                  elevation: 8,
+                  elevation: 6,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: Row(
                       children: [
                         Container(
-                          width: 12,
-                          height: 12,
+                          width: 8,
+                          height: 8,
                           decoration: BoxDecoration(
-                            color: Colors.green,
+                            color: authProvider.statusColor,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Trực tuyến - Sẵn sàng nhận đơn',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                        Expanded(
+                          child: Text(
+                            authProvider.statusText,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         Switch(
-                          value: true,
-                          onChanged: (value) {
-                            // TODO: Toggle online status
-                          },
+                          value: authProvider.isOnline,
+                          onChanged: authProvider.isLoading
+                              ? null
+                              : (value) async {
+                                  final success =
+                                      await authProvider.toggleOnlineStatus();
+                                  if (!success && authProvider.error != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            Text('Lỗi: ${authProvider.error}'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
                           activeColor: Colors.green,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-
-              // Menu button for drawer
-              Positioned(
-                top: 50,
-                left: 16,
-                child: Builder(
-                  builder: (context) => FloatingActionButton(
-                    heroTag: "menu",
-                    mini: true,
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black87,
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                    child: const Icon(Icons.menu),
                   ),
                 ),
               ),

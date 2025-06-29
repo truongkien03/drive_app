@@ -298,6 +298,176 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Toggle driver online status
+  Future<bool> toggleOnlineStatus() async {
+    if (_driver == null) return false;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final isCurrentlyOnline = _driver!.status == 1; // 1 = FREE/ONLINE
+      final response =
+          await _apiService.setDriverOnlineStatus(!isCurrentlyOnline);
+
+      if (response.success && response.data != null) {
+        _driver = response.data;
+        await StorageService.saveDriver(_driver!);
+        _error = null;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _error = response.message ?? 'Failed to update status';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Set driver status to online
+  Future<bool> setDriverOnline() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      print('🟢 AuthProvider: Setting driver status to ONLINE...');
+      final response = await _apiService.setDriverOnline();
+
+      if (response.success && response.data != null) {
+        _driver = response.data;
+        await StorageService.saveDriver(_driver!);
+        print(
+            '✅ AuthProvider: Driver status set to ONLINE, new status: ${_driver?.status}');
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _error = response.message;
+        print(
+            '❌ AuthProvider: Failed to set driver online: ${response.message}');
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      print('💥 AuthProvider: Error setting driver online: ${e.toString()}');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Set driver status to offline
+  Future<bool> setDriverOffline() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      print('🔴 AuthProvider: Setting driver status to OFFLINE...');
+      final response = await _apiService.setDriverOffline();
+
+      if (response.success && response.data != null) {
+        _driver = response.data;
+        await StorageService.saveDriver(_driver!);
+        print(
+            '✅ AuthProvider: Driver status set to OFFLINE, new status: ${_driver?.status}');
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _error = response.message;
+        print(
+            '❌ AuthProvider: Failed to set driver offline: ${response.message}');
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      print('💥 AuthProvider: Error setting driver offline: ${e.toString()}');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Helper method to check if driver is online
+  bool get isDriverOnline => _driver?.status == 1; // 1 = FREE/ONLINE
+
+  // Simplified method for switch widget
+  bool get isOnline => isDriverOnline;
+
+  // Helper method to get status text
+  String get driverStatusText {
+    switch (_driver?.status) {
+      case 1:
+        return 'Trực tuyến - Sẵn sàng nhận đơn';
+      case 2:
+        return 'Ngoại tuyến';
+      case 3:
+        return 'Bận - Đang giao hàng';
+      default:
+        return 'Không xác định';
+    }
+  }
+
+  // Simplified method for status card
+  String get statusText => driverStatusText;
+
+  // Helper method to get status color
+  Color get statusColor {
+    switch (_driver?.status) {
+      case 1:
+        return Colors.green; // Online/Free
+      case 2:
+        return Colors.grey; // Offline
+      case 3:
+        return Colors.orange; // Busy
+      default:
+        return Colors.red; // Unknown
+    }
+  }
+
+  // Change password
+  Future<bool> changePassword(String currentPassword, String newPassword,
+      String passwordConfirmation) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.changeDriverPassword(
+        currentPassword,
+        newPassword,
+        passwordConfirmation,
+      );
+
+      if (response.success) {
+        _error = null;
+        return true;
+      } else {
+        _error = _getErrorMessage(response);
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> _loadDriverProfile() async {
     try {
       print('🔄 Loading driver profile...');

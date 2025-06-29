@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import 'set_password_screen.dart';
 import 'update_profile_screen.dart';
+import 'change_password_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -148,24 +149,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 }
                               },
                             ),
-                            _buildSettingItem(
-                              icon: Icons.lock,
-                              title: 'Đặt mật khẩu',
-                              subtitle: 'Thiết lập mật khẩu bảo mật',
-                              onTap: () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const SetPasswordScreen(),
-                                  ),
-                                );
-                                // Reload data when returning from set password
-                                if (result == true || result == 'updated') {
-                                  await _loadDriverProfile();
-                                }
-                              },
-                            ),
+                            // Show different options based on password status
+                            if (authProvider.driver?.hasPassword != true)
+                              _buildSettingItem(
+                                icon: Icons.lock,
+                                title: 'Đặt mật khẩu',
+                                subtitle: 'Thiết lập mật khẩu bảo mật',
+                                onTap: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const SetPasswordScreen(),
+                                    ),
+                                  );
+                                  // Reload data when returning from set password
+                                  if (result == true || result == 'updated') {
+                                    await _loadDriverProfile();
+                                  }
+                                },
+                              ),
+                            if (authProvider.driver?.hasPassword == true)
+                              _buildSettingItem(
+                                icon: Icons.lock_reset,
+                                title: 'Đổi mật khẩu',
+                                subtitle: 'Thay đổi mật khẩu hiện tại',
+                                onTap: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ChangePasswordScreen(),
+                                    ),
+                                  );
+                                  // Reload data when returning from change password
+                                  if (result == true || result == 'updated') {
+                                    await _loadDriverProfile();
+                                  }
+                                },
+                              ),
                             _buildSettingItem(
                               icon: Icons.verified_user,
                               title: 'Trạng thái tài khoản',

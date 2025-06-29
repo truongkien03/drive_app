@@ -611,4 +611,181 @@ class ApiService {
     print('🔑 Current token: $_token');
     print('📋 Headers: $_headers');
   }
+
+  // Set driver status to online
+  Future<ApiResponse<Driver>> setDriverOnline() async {
+    try {
+      print('🟢 Setting driver status to ONLINE...');
+      print('🎯 POST ${AppConfig.baseUrl}${AppConfig.driverStatusOnline}');
+      print('🔑 Using token: $_token');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverStatusOnline}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (_token != null) 'Authorization': 'Bearer $_token',
+        },
+      ).timeout(Duration(seconds: 10));
+
+      print('📊 Set Online Response Status: ${response.statusCode}');
+      print('📄 Set Online Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        print('🔍 Parsed Set Online Response: $responseData');
+
+        if (response.statusCode == 200 && responseData['data'] != null) {
+          print('✅ Driver status set to ONLINE successfully');
+          return ApiResponse.success(Driver.fromJson(responseData['data']));
+        } else {
+          print('❌ Set Online Failed - Status: ${response.statusCode}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('❌ Set Online Failed - Empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Set Online Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Set driver status to offline
+  Future<ApiResponse<Driver>> setDriverOffline() async {
+    try {
+      print('🔴 Setting driver status to OFFLINE...');
+      print('🎯 POST ${AppConfig.baseUrl}${AppConfig.driverStatusOffline}');
+      print('🔑 Using token: $_token');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverStatusOffline}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (_token != null) 'Authorization': 'Bearer $_token',
+        },
+      ).timeout(Duration(seconds: 10));
+
+      print('📊 Set Offline Response Status: ${response.statusCode}');
+      print('📄 Set Offline Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        print('🔍 Parsed Set Offline Response: $responseData');
+
+        if (response.statusCode == 200 && responseData['data'] != null) {
+          print('✅ Driver status set to OFFLINE successfully');
+          return ApiResponse.success(Driver.fromJson(responseData['data']));
+        } else {
+          print('❌ Set Offline Failed - Status: ${response.statusCode}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('❌ Set Offline Failed - Empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Set Offline Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Change password for driver
+  Future<ApiResponse<void>> changeDriverPassword(String currentPassword,
+      String newPassword, String passwordConfirmation) async {
+    try {
+      print('🔐 Changing driver password...');
+      print('🔑 Request headers: $_headers');
+      print('🎯 Current token: $_token');
+
+      final response = await http
+          .post(
+            Uri.parse('${AppConfig.baseUrl}${AppConfig.driverChangePassword}'),
+            headers: _headers,
+            body: jsonEncode({
+              'current_password': currentPassword,
+              'password': newPassword,
+              'password_confirmation': passwordConfirmation,
+            }),
+          )
+          .timeout(Duration(seconds: 10));
+
+      print('📊 Change Password Response Status: ${response.statusCode}');
+      print('📄 Change Password Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          print('🔍 Parsed Change Password Response: $responseData');
+          print('✅ Password changed successfully');
+          return ApiResponse.success(null);
+        } else {
+          print('✅ Password changed successfully - Empty response');
+          return ApiResponse.success(null);
+        }
+      } else {
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          print('❌ Change Password Failed - Status: ${response.statusCode}');
+          return ApiResponse.fromJson(responseData, null);
+        } else {
+          print('❌ Change Password Failed - Empty response');
+          return ApiResponse.error('Server returned empty response');
+        }
+      }
+    } catch (e) {
+      print('💥 Change Password Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Set driver online status
+  Future<ApiResponse<Driver>> setDriverOnlineStatus(bool isOnline) async {
+    try {
+      final endpoint = isOnline
+          ? AppConfig.driverStatusOnline
+          : AppConfig.driverStatusOffline;
+
+      print('🔄 Setting driver status to ${isOnline ? 'ONLINE' : 'OFFLINE'}');
+      print('🎯 POST ${AppConfig.baseUrl}$endpoint');
+      print('🔑 Current token: $_token');
+
+      final response = await http
+          .post(
+            Uri.parse('${AppConfig.baseUrl}$endpoint'),
+            headers: _headers,
+          )
+          .timeout(Duration(seconds: 10));
+
+      print('📊 Status Change Response Status: ${response.statusCode}');
+      print('📄 Status Change Response Body: ${response.body}');
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        print('🔍 Parsed Status Change Response: $responseData');
+
+        if (responseData['data'] != null) {
+          print('✅ Status changed successfully');
+          return ApiResponse.success(Driver.fromJson(responseData['data']));
+        } else {
+          print('❌ Status change failed - No data in response');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          print('❌ Status change failed - Status: ${response.statusCode}');
+          return ApiResponse.fromJson(responseData, null);
+        } else {
+          print('❌ Status change failed - Empty response');
+          return ApiResponse.error('Server returned empty response');
+        }
+      }
+    } catch (e) {
+      print('💥 Status Change Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
 }

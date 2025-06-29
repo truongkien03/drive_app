@@ -10,6 +10,9 @@ class AppConfig {
   static const String driverProfile = '/driver/profile';
   static const String driverProfileUpdate = '/driver/profile';
   static const String driverSetPassword = '/driver/set-password';
+  static const String driverChangePassword = '/driver/change-password';
+  static const String driverStatusOnline = '/driver/setting/status/online';
+  static const String driverStatusOffline = '/driver/setting/status/offline';
 
   // File upload endpoints
   static const String uploadImage = '/upload/image';
