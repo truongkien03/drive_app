@@ -3,6 +3,8 @@ import '../models/driver.dart';
 import '../models/auth_token.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/driver_fcm_service.dart';
+import '../services/driver_location_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -298,6 +300,86 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // New method using direct file upload API
+  Future<bool> updateProfileWithFiles({
+    String? name,
+    String? email,
+    String? referenceCode,
+    String? cmndFrontImagePath,
+    String? cmndBackImagePath,
+    String? gplxFrontImagePath,
+    String? gplxBackImagePath,
+    String? dangkyXeImagePath,
+    String? baohiemImagePath,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      print('🔄 ===== STARTING UPDATE PROFILE WITH FILES =====');
+
+      if (_token?.accessToken == null) {
+        print('❌ No access token found');
+        _error = "No access token found";
+        return false;
+      }
+
+      _apiService.setToken(_token!.accessToken);
+      print('✅ Token set for API request');
+
+      print('🚀 ===== CALLING NEW API UPDATE PROFILE =====');
+      print('📝 Parameters being sent:');
+      print('   👤 name: $name');
+      print('   📧 email: $email');
+      print('   🔗 referenceCode: $referenceCode');
+      print('   📷 cmndFrontImagePath: $cmndFrontImagePath');
+      print('   📷 cmndBackImagePath: $cmndBackImagePath');
+      print('   🚗 gplxFrontImagePath: $gplxFrontImagePath');
+      print('   🚗 gplxBackImagePath: $gplxBackImagePath');
+      print('   📄 dangkyXeImagePath: $dangkyXeImagePath');
+      print('   🛡️ baohiemImagePath: $baohiemImagePath');
+
+      final response = await _apiService.updateDriverProfileWithFiles(
+        name: name,
+        email: email,
+        referenceCode: referenceCode,
+        gplxFrontImagePath: gplxFrontImagePath,
+        gplxBackImagePath: gplxBackImagePath,
+        baohiemImagePath: baohiemImagePath,
+        dangkyXeImagePath: dangkyXeImagePath,
+        cmndFrontImagePath: cmndFrontImagePath,
+        cmndBackImagePath: cmndBackImagePath,
+      );
+
+      print('📊 ===== NEW API RESPONSE RECEIVED =====');
+      print('✅ Response success: ${response.success}');
+      print('📄 Response data: ${response.data}');
+
+      if (response.success && response.data != null) {
+        // Update driver info from response
+        if (response.data!['data'] != null &&
+            response.data!['data']['driver'] != null) {
+          _driver = Driver.fromJson(response.data!['data']['driver']);
+          await StorageService.saveDriver(_driver!);
+          print('✅ Driver profile updated successfully');
+        }
+        return true;
+      } else {
+        _error = response.message ?? 'Unknown error occurred';
+        print('❌ Profile update failed: $_error');
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      print('💥 Profile update error: $e');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   // Toggle driver online status
   Future<bool> toggleOnlineStatus() async {
     if (_driver == null) return false;
@@ -346,6 +428,15 @@ class AuthProvider extends ChangeNotifier {
         await StorageService.saveDriver(_driver!);
         print(
             '✅ AuthProvider: Driver status set to ONLINE, new status: ${_driver?.status}');
+
+        // Start location tracking when driver goes online
+        await DriverLocationService.startLocationTracking();
+
+        // Force initial location update to ensure current_location is not null
+        print('🔧 Ensuring current_location is set...');
+        await Future.delayed(Duration(seconds: 2)); // Wait for GPS to be ready
+        await DriverLocationService.updateLocationNow();
+
         _isLoading = false;
         notifyListeners();
         return true;
@@ -381,6 +472,10 @@ class AuthProvider extends ChangeNotifier {
         await StorageService.saveDriver(_driver!);
         print(
             '✅ AuthProvider: Driver status set to OFFLINE, new status: ${_driver?.status}');
+
+        // Stop location tracking when driver goes offline
+        DriverLocationService.stopLocationTracking();
+
         _isLoading = false;
         notifyListeners();
         return true;
@@ -477,6 +572,9 @@ class AuthProvider extends ChangeNotifier {
         _driver = response.data;
         await StorageService.saveDriver(_driver!);
         print('✅ Driver profile loaded successfully');
+
+        // Send FCM token to server after successful login
+        await _sendFCMTokenToServer();
       } else {
         print('⚠️ Failed to load driver profile: ${response.message}');
         // Create a minimal driver object if profile loading fails
@@ -529,14 +627,56 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    _driver = null;
-    _token = null;
-    _error = null;
+    try {
+      print('🚪 Starting logout process...');
 
-    await StorageService.clearAll();
-    _apiService.setToken('');
+      // Set loading state
+      _isLoading = true;
+      notifyListeners();
 
-    notifyListeners();
+      // Remove FCM token from server before logout (but don't wait too long)
+      try {
+        await DriverFCMService.removeToken().timeout(Duration(seconds: 5));
+        print('✅ FCM token removed successfully');
+      } catch (e) {
+        print('⚠️ Failed to remove FCM token: $e');
+        // Continue with logout even if FCM removal fails
+      }
+
+      // Stop location tracking
+      DriverLocationService.stopLocationTracking();
+      print('✅ Location tracking stopped');
+
+      // Clear all data
+      _driver = null;
+      _token = null;
+      _error = null;
+
+      await StorageService.clearAll();
+      _apiService.setToken('');
+
+      _isLoading = false;
+      print('✅ Logout completed successfully');
+
+      notifyListeners();
+    } catch (e) {
+      print('💥 Logout error: $e');
+
+      // Force clear data even if some steps failed
+      _driver = null;
+      _token = null;
+      _error = null;
+      _isLoading = false;
+
+      try {
+        await StorageService.clearAll();
+        _apiService.setToken('');
+      } catch (clearError) {
+        print('💥 Error clearing storage: $clearError');
+      }
+
+      notifyListeners();
+    }
   }
 
   void clearError() {
@@ -565,5 +705,16 @@ class AuthProvider extends ChangeNotifier {
     }
 
     return 'Đã xảy ra lỗi. Vui lòng thử lại!';
+  }
+
+  Future<void> _sendFCMTokenToServer() async {
+    try {
+      print('🔔 Sending FCM token to server after login...');
+      // Send current FCM token to server
+      await DriverFCMService.sendCurrentTokenToServer();
+      print('✅ FCM token sent successfully after login');
+    } catch (e) {
+      print('❌ Error sending FCM token after login: $e');
+    }
   }
 }

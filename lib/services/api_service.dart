@@ -549,6 +549,123 @@ class ApiService {
     }
   }
 
+  // New method for updating driver profile with direct file upload
+  // According to new API spec: POST /api/driver/profile with multipart/form-data
+  Future<ApiResponse<Map<String, dynamic>>> updateDriverProfileWithFiles({
+    String? name,
+    String? email,
+    String? referenceCode,
+    String? gplxFrontImagePath,
+    String? gplxBackImagePath,
+    String? baohiemImagePath,
+    String? dangkyXeImagePath,
+    String? cmndFrontImagePath,
+    String? cmndBackImagePath,
+  }) async {
+    try {
+      print('🔄 ===== UPDATING DRIVER PROFILE WITH FILES =====');
+      print('🎯 POST ${AppConfig.baseUrl}${AppConfig.driverProfileUpdate}');
+      print('🔑 Current token: $_token');
+
+      if (_token == null || _token!.isEmpty) {
+        print('❌ No authentication token found!');
+        return ApiResponse.error('No authentication token available');
+      }
+
+      // Create multipart request
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverProfileUpdate}'),
+      );
+
+      // Add headers
+      request.headers['Authorization'] = 'Bearer $_token';
+      request.headers['Accept'] = 'application/json';
+      // Note: Don't set Content-Type for multipart, let http package handle it
+
+      print('📋 Request headers: ${request.headers}');
+
+      // Add text fields
+      if (name != null && name.isNotEmpty) {
+        request.fields['name'] = name;
+        print('✅ Name added: $name');
+      }
+
+      if (email != null && email.isNotEmpty) {
+        request.fields['email'] = email;
+        print('✅ Email added: $email');
+      }
+
+      if (referenceCode != null && referenceCode.isNotEmpty) {
+        request.fields['reference_code'] = referenceCode;
+        print('✅ Reference code added: $referenceCode');
+      }
+
+      // Add image files
+      await _addImageFile(request, 'gplx_front', gplxFrontImagePath);
+      await _addImageFile(request, 'gplx_back', gplxBackImagePath);
+      await _addImageFile(request, 'baohiem', baohiemImagePath);
+      await _addImageFile(request, 'dangky_xe', dangkyXeImagePath);
+      await _addImageFile(request, 'cmnd_front', cmndFrontImagePath);
+      await _addImageFile(request, 'cmnd_back', cmndBackImagePath);
+
+      print('📊 Total fields: ${request.fields.length}');
+      print('📊 Total files: ${request.files.length}');
+      print('📋 Fields: ${request.fields.keys.join(', ')}');
+      print('📋 Files: ${request.files.map((f) => f.field).join(', ')}');
+
+      print('📤 Sending multipart request...');
+      final streamedResponse =
+          await request.send().timeout(Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('📊 Response Status: ${response.statusCode}');
+      print('📄 Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          print('✅ Profile updated successfully');
+          return ApiResponse.success(responseData);
+        } else {
+          print('❌ Profile update failed');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Empty response from server');
+      }
+    } catch (e) {
+      print('💥 Profile Update Error: $e');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Helper method to add image file to multipart request
+  Future<void> _addImageFile(
+    http.MultipartRequest request,
+    String fieldName,
+    String? imagePath,
+  ) async {
+    if (imagePath != null && imagePath.isNotEmpty) {
+      try {
+        final file = File(imagePath);
+        if (await file.exists()) {
+          final multipartFile = await http.MultipartFile.fromPath(
+            fieldName,
+            imagePath,
+          );
+          request.files.add(multipartFile);
+          print('✅ Image added: $fieldName (${file.lengthSync()} bytes)');
+        } else {
+          print('❌ Image file not found: $imagePath');
+        }
+      } catch (e) {
+        print('❌ Error adding image $fieldName: $e');
+      }
+    }
+  }
+
   // Get current driver profile (for debugging)
   Future<ApiResponse<Driver>> getCurrentDriverProfile() async {
     try {
@@ -785,6 +902,58 @@ class ApiService {
       }
     } catch (e) {
       print('💥 Status Change Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Update driver current location
+  Future<ApiResponse<Driver>> updateDriverLocation(
+      double lat, double lon) async {
+    try {
+      print('📍 Updating driver location: $lat, $lon');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverUpdateLocation}'),
+        headers: _headers,
+        body: jsonEncode({
+          'lat': lat,
+          'lon': lon,
+        }),
+      );
+
+      print('📊 Location update response: ${response.statusCode}');
+      print('📄 Location update body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          return ApiResponse.fromJson(
+              responseData, (data) => Driver.fromJson(data));
+        } else {
+          print('❌ Location update failed - Empty response');
+          return ApiResponse.error('Server returned empty response');
+        }
+      } else if (response.statusCode == 401) {
+        print('🔒 Location update failed - Unauthorized');
+        return ApiResponse.error('Unauthorized - Please login again');
+      } else if (response.statusCode == 422) {
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          return ApiResponse.fromJson(responseData, null);
+        } else {
+          return ApiResponse.error('Invalid location data');
+        }
+      } else {
+        print('❌ Location update failed - Status: ${response.statusCode}');
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          return ApiResponse.fromJson(responseData, null);
+        } else {
+          return ApiResponse.error('Server error: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      print('💥 Location Update Error: ${e.toString()}');
       return ApiResponse.error('Network error: ${e.toString()}');
     }
   }

@@ -60,6 +60,8 @@ dependencies:
   # Firebase
   firebase_core: ^2.24.2
   firebase_storage: ^11.6.0
+  firebase_messaging: ^14.7.10
+  flutter_local_notifications: ^17.0.0
   # cloud_firestore: ^5.4.0   # nếu dùng Firestore - tạm comment để tránh conflict
   # firebase_database: ^10.1.0 # nếu dùng Realtime Database - tạm comment
   

@@ -5,10 +5,20 @@ import 'providers/auth_provider.dart';
 import 'screens/auth/phone_input_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'utils/app_theme.dart';
+import 'services/driver_location_service.dart';
+import 'services/driver_fcm_service.dart';
+import 'services/navigation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
   await Firebase.initializeApp();
+
+  // Initialize services
+  await DriverLocationService.initialize();
+  await DriverFCMService.initialize();
+
   runApp(const MyApp());
 }
 
@@ -24,6 +34,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Driver App',
         theme: AppTheme.lightTheme,
+        navigatorKey: NavigationService.navigatorKey,
         home: const SplashScreen(),
         debugShowCheckedModeBanner: false,
       ),

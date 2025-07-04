@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:async';
 import '../../providers/auth_provider.dart';
+import '../../services/driver_location_service.dart';
 import '../auth/phone_input_screen.dart';
 import 'orders_screen.dart';
 import 'trip_sharing_screen.dart';
@@ -11,6 +14,8 @@ import 'history_screen.dart';
 import 'invite_friends_screen.dart';
 import 'settings_screen.dart';
 import 'profile_detail_screen.dart';
+import 'real_time_map_screen.dart';
+import '../../test/gps_test_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -20,6 +25,157 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final MapController _mapController = MapController();
+  Position? _currentPosition;
+  Timer? _locationUpdateTimer;
+  List<LatLng> _locationHistory = [];
+  String _locationStatus = 'Đang khởi tạo GPS...';
+  String _lastUpdateTime = '';
+  bool _isMapReady = false;
+  int _totalUpdates = 0;
+  int _successfulUpdates = 0;
+
+  // Default location (Hanoi)
+  static const LatLng _defaultLocation = LatLng(21.0285, 105.8542);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndStartTracking();
+    });
+  }
+
+  void _checkAndStartTracking() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.isOnline) {
+      _initializeLocationTracking();
+    }
+  }
+
+  @override
+  void dispose() {
+    _locationUpdateTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initializeLocationTracking() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!authProvider.isOnline) {
+      setState(() {
+        _locationStatus = 'Tài xế offline - chưa bật GPS tracking';
+      });
+      return;
+    }
+
+    try {
+      setState(() {
+        _locationStatus = 'Đang kiểm tra quyền GPS...';
+      });
+
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          _locationStatus = 'GPS chưa được bật trên thiết bị';
+        });
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _locationStatus = 'Quyền GPS bị từ chối';
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _locationStatus = 'Quyền GPS bị từ chối vĩnh viễn';
+        });
+        return;
+      }
+
+      await _getCurrentLocation();
+      _startLocationTracking();
+
+      setState(() {
+        _locationStatus = 'GPS đang hoạt động';
+      });
+    } catch (e) {
+      setState(() {
+        _locationStatus = 'Lỗi khởi tạo GPS: $e';
+      });
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 10),
+      );
+
+      setState(() {
+        _currentPosition = position;
+        _lastUpdateTime = DateTime.now().toString().substring(11, 19);
+      });
+
+      LatLng newPoint = LatLng(position.latitude, position.longitude);
+      _locationHistory.add(newPoint);
+
+      if (_locationHistory.length > 50) {
+        _locationHistory.removeAt(0);
+      }
+
+      if (!_isMapReady) {
+        _mapController.move(newPoint, 16.0);
+        setState(() {
+          _isMapReady = true;
+        });
+      }
+
+      print('📍 GPS Updated: ${position.latitude}, ${position.longitude}');
+    } catch (e) {
+      print('❌ Error getting current location: $e');
+    }
+  }
+
+  void _startLocationTracking() {
+    _locationUpdateTimer = Timer.periodic(Duration(seconds: 30), (timer) async {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      if (authProvider.isOnline) {
+        await _getCurrentLocation();
+        await _sendLocationToServer();
+      } else {
+        setState(() {
+          _locationStatus = 'Tài xế offline - dừng tracking';
+        });
+        timer.cancel();
+      }
+    });
+  }
+
+  Future<void> _sendLocationToServer() async {
+    if (_currentPosition == null) return;
+
+    try {
+      _totalUpdates++;
+      await DriverLocationService.updateLocationNow();
+      setState(() {
+        _successfulUpdates++;
+      });
+      print('✅ Location sent to server successfully');
+    } catch (e) {
+      print('❌ Failed to send location to server: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,66 +188,108 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          if (authProvider.driver == null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Không thể tải thông tin tài xế',
-                    style: Theme.of(context).textTheme.headlineSmall,
+          if (authProvider.driver == null && !authProvider.isLoading) {
+            // If driver is null and not loading, it means user logged out or auth failed
+            // Use a post frame callback to avoid calling Navigator during build
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PhoneInputScreen(isLogin: true),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    authProvider.error ?? 'Lỗi không xác định',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => authProvider.initialize(),
-                    child: const Text('Thử lại'),
-                  ),
-                ],
+                  (route) => false,
+                );
+              }
+            });
+
+            return const Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Đang chuyển hướng...'),
+                  ],
+                ),
               ),
             );
           }
 
-          // Main content - OSM Map with overlays
+          // Main content - GPS Tracking Map
           return Stack(
             children: [
-              // Map
+              // Map with GPS tracking
               FlutterMap(
+                mapController: _mapController,
                 options: MapOptions(
-                  center: LatLng(21.0285, 105.8542), // Hanoi coordinates
-                  zoom: 13.0,
+                  center: _currentPosition != null
+                      ? LatLng(_currentPosition!.latitude,
+                          _currentPosition!.longitude)
+                      : _defaultLocation,
+                  zoom: 16.0,
+                  maxZoom: 19.0,
+                  minZoom: 10.0,
                 ),
                 children: [
+                  // Map tiles
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.example.drive_app',
                   ),
+
+                  // Location history trail
+                  if (_locationHistory.length > 1)
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: _locationHistory,
+                          strokeWidth: 3.0,
+                          color: Colors.blue.withOpacity(0.6),
+                        ),
+                      ],
+                    ),
+
+                  // Current location marker
                   MarkerLayer(
                     markers: [
-                      Marker(
-                        point: LatLng(21.0285, 105.8542),
-                        child: Container(
-                          child: Icon(
-                            Icons.location_on,
-                            color: Colors.red,
-                            size: 40,
+                      // Current driver position
+                      if (_currentPosition != null)
+                        Marker(
+                          point: LatLng(_currentPosition!.latitude,
+                              _currentPosition!.longitude),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 6,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.navigation,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            width: 30,
+                            height: 30,
                           ),
                         ),
-                      ),
+
+                      // Sample delivery locations
                       Marker(
                         point: LatLng(21.0245, 105.8412),
                         child: Container(
                           child: Icon(
-                            Icons.local_taxi,
-                            color: Colors.blue,
+                            Icons.local_shipping,
+                            color: Colors.orange,
                             size: 30,
                           ),
                         ),
@@ -111,9 +309,104 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
 
-              // Menu button overlay
+              // GPS Status Panel (top)
               Positioned(
                 top: 50,
+                left: 16,
+                right: 16,
+                child: Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    return Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: authProvider.isOnline
+                            ? Colors.green[50]
+                            : Colors.grey[50],
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
+                          color: authProvider.isOnline
+                              ? Colors.green
+                              : Colors.grey,
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            authProvider.isOnline
+                                ? Icons.gps_fixed
+                                : Icons.gps_off,
+                            color: authProvider.isOnline
+                                ? Colors.green
+                                : Colors.grey,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  authProvider.isOnline
+                                      ? 'ONLINE - GPS TRACKING'
+                                      : 'OFFLINE',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: authProvider.isOnline
+                                        ? Colors.green[700]
+                                        : Colors.grey[600],
+                                  ),
+                                ),
+                                if (authProvider.isOnline &&
+                                    _currentPosition != null)
+                                  Text(
+                                    '📍 ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                                    style: TextStyle(
+                                        fontSize: 10, color: Colors.grey[600]),
+                                  )
+                                else if (authProvider.isOnline)
+                                  Text(
+                                    _locationStatus,
+                                    style: TextStyle(
+                                        fontSize: 10, color: Colors.grey[600]),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (authProvider.isOnline && _currentPosition != null)
+                            IconButton(
+                              onPressed: () {
+                                _mapController.move(
+                                    LatLng(_currentPosition!.latitude,
+                                        _currentPosition!.longitude),
+                                    16.0);
+                              },
+                              icon: Icon(Icons.my_location,
+                                  size: 20, color: Colors.blue),
+                              constraints:
+                                  BoxConstraints(minWidth: 32, minHeight: 32),
+                              padding: EdgeInsets.zero,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Menu button overlay
+              Positioned(
+                top: 120,
                 left: 16,
                 child: Builder(
                   builder: (context) => FloatingActionButton(
@@ -167,16 +460,29 @@ class _HomeScreenState extends State<HomeScreen> {
                           onChanged: authProvider.isLoading
                               ? null
                               : (value) async {
-                                  final success =
-                                      await authProvider.toggleOnlineStatus();
-                                  if (!success && authProvider.error != null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content:
-                                            Text('Lỗi: ${authProvider.error}'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
+                                  if (value) {
+                                    bool success =
+                                        await authProvider.setDriverOnline();
+                                    if (success) {
+                                      _initializeLocationTracking();
+                                    } else if (authProvider.error != null) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              'Lỗi: ${authProvider.error}'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    await authProvider.setDriverOffline();
+                                    _locationUpdateTimer?.cancel();
+                                    setState(() {
+                                      _locationStatus = 'Đã dừng GPS tracking';
+                                      _currentPosition = null;
+                                      _locationHistory.clear();
+                                    });
                                   }
                                 },
                           activeColor: Colors.green,
@@ -201,9 +507,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       mini: true,
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.blue,
-                      onPressed: () {
-                        // TODO: Center to current location
-                      },
+                      onPressed: _currentPosition != null
+                          ? () {
+                              _mapController.move(
+                                  LatLng(_currentPosition!.latitude,
+                                      _currentPosition!.longitude),
+                                  16.0);
+                            }
+                          : null,
                       child: const Icon(Icons.my_location),
                     ),
                     const SizedBox(height: 8),
@@ -431,6 +742,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const Divider(),
                     _buildMenuItem(
+                      icon: Icons.location_searching,
+                      title: 'GPS Test',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const GPSTestScreen()),
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
                       icon: Icons.logout,
                       title: 'Đăng xuất',
                       onTap: () {
@@ -479,17 +802,41 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
-              final authProvider =
-                  Provider.of<AuthProvider>(context, listen: false);
-              await authProvider.logout();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PhoneInputScreen(isLogin: true),
-                ),
-                (route) => false,
-              );
+              Navigator.pop(context); // Close dialog first
+
+              try {
+                // Stop location tracking immediately
+                _locationUpdateTimer?.cancel();
+
+                final authProvider =
+                    Provider.of<AuthProvider>(context, listen: false);
+                await authProvider.logout();
+
+                // Navigate to login with a slight delay to ensure logout completes
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const PhoneInputScreen(isLogin: true),
+                    ),
+                    (route) => false,
+                  );
+                }
+              } catch (e) {
+                print('❌ Logout error: $e');
+                // Still navigate to login even if logout fails
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const PhoneInputScreen(isLogin: true),
+                    ),
+                    (route) => false,
+                  );
+                }
+              }
             },
             child: const Text('Đăng xuất'),
           ),

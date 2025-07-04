@@ -13,6 +13,10 @@ class AppConfig {
   static const String driverChangePassword = '/driver/change-password';
   static const String driverStatusOnline = '/driver/setting/status/online';
   static const String driverStatusOffline = '/driver/setting/status/offline';
+  static const String driverUpdateLocation = '/driver/current-location';
+
+  // FCM endpoints
+  static const String driverFCMToken = '/driver/fcm/token';
 
   // File upload endpoints
   static const String uploadImage = '/upload/image';

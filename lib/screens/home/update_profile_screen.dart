@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/profile_update_test_helper.dart';
 
 class UpdateProfileScreen extends StatefulWidget {
   const UpdateProfileScreen({Key? key}) : super(key: key);
@@ -15,6 +16,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _referenceCodeController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
   // 6 ảnh tài liệu tài xế cần upload
@@ -45,6 +47,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _referenceCodeController.dispose();
     super.dispose();
   }
 
@@ -172,6 +175,15 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                               return null;
                             },
                           ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _referenceCodeController,
+                            decoration: const InputDecoration(
+                              labelText: 'Mã giới thiệu (tùy chọn)',
+                              border: OutlineInputBorder(),
+                              hintText: 'Nhập mã giới thiệu nếu có',
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -298,6 +310,40 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                   ),
                   const SizedBox(height: 24),
 
+                  // Nút test API (debug)
+                  if (const bool.fromEnvironment('dart.vm.product') ==
+                      false) // Only in debug mode
+                    Column(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            await ProfileUpdateTestHelper.testProfileUpdateAPI(
+                              name: _nameController.text.trim().isNotEmpty
+                                  ? _nameController.text.trim()
+                                  : null,
+                              email: _emailController.text.trim().isNotEmpty
+                                  ? _emailController.text.trim()
+                                  : null,
+                              referenceCode: _referenceCodeController.text
+                                      .trim()
+                                      .isNotEmpty
+                                  ? _referenceCodeController.text.trim()
+                                  : null,
+                              gplxFrontImagePath: _gplxFrontImage?.path,
+                              gplxBackImagePath: _gplxBackImage?.path,
+                              baohiemImagePath: _baohiemImage?.path,
+                              dangkyXeImagePath: _dangkyXeImage?.path,
+                              cmndFrontImagePath: _cmndFrontImage?.path,
+                              cmndBackImagePath: _cmndBackImage?.path,
+                            );
+                          },
+                          icon: Icon(Icons.bug_report),
+                          label: Text('Test API (Debug)'),
+                        ),
+                        SizedBox(height: 16),
+                      ],
+                    ),
+
                   // Nút cập nhật
                   ElevatedButton(
                     onPressed: authProvider.isLoading ? null : _updateProfile,
@@ -392,12 +438,15 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     print('📄 Dangky Xe Image: ${_dangkyXeImage?.path}');
     print('🛡️ Baohiem Image: ${_baohiemImage?.path}');
 
-    final success = await authProvider.updateProfile(
+    final success = await authProvider.updateProfileWithFiles(
       name: _nameController.text.trim().isNotEmpty
           ? _nameController.text.trim()
           : null,
       email: _emailController.text.trim().isNotEmpty
           ? _emailController.text.trim()
+          : null,
+      referenceCode: _referenceCodeController.text.trim().isNotEmpty
+          ? _referenceCodeController.text.trim()
           : null,
       cmndFrontImagePath: _cmndFrontImage?.path,
       cmndBackImagePath: _cmndBackImage?.path,
