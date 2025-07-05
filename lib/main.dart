@@ -9,6 +9,7 @@ import 'utils/app_theme.dart';
 import 'services/driver_location_service.dart';
 import 'services/driver_fcm_service.dart';
 import 'services/navigation_service.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +17,10 @@ void main() async {
   // Initialize Firebase
   await Firebase.initializeApp();
 
-  // Initialize services
+  // Initialize AuthService first
+  await AuthService().initialize();
+
+  // Initialize other services
   await DriverLocationService.initialize();
   await DriverFCMService.initialize();
 

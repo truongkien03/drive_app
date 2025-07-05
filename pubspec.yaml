@@ -74,6 +74,9 @@ dependencies:
   
   # Image picker
   image_picker: ^1.0.4
+  
+  # URL launcher
+  url_launcher: ^6.2.2
 
 
   

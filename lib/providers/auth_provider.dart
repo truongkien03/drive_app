@@ -5,9 +5,11 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/driver_fcm_service.dart';
 import '../services/driver_location_service.dart';
+import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
+  final AuthService _authService = AuthService();
 
   Driver? _driver;
   AuthToken? _token;
@@ -25,11 +27,13 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _token = await StorageService.getToken();
-      _driver = await StorageService.getDriver();
+      // AuthService is already initialized in main.dart
+      // Just get the current state
+      if (_authService.isAuthenticated) {
+        _token = AuthToken(accessToken: _authService.currentToken!);
 
-      if (_token != null) {
-        _apiService.setToken(_token!.accessToken);
+        // Load driver profile
+        await _loadDriverProfile();
       }
     } catch (e) {
       _error = e.toString();
@@ -124,13 +128,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _apiService.loginDriver(phoneNumber, otp);
+      final response = await _authService.loginDriver(phoneNumber, otp);
 
       if (response.success && response.data != null) {
         _token = response.data;
-        _apiService.setToken(_token!.accessToken);
-
-        await StorageService.saveToken(_token!);
 
         // Get driver profile after login
         await _loadDriverProfile();
@@ -156,13 +157,10 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final response =
-          await _apiService.loginDriverWithPassword(phoneNumber, password);
+          await _authService.loginDriverWithPassword(phoneNumber, password);
 
       if (response.success && response.data != null) {
         _token = response.data;
-        _apiService.setToken(_token!.accessToken);
-
-        await StorageService.saveToken(_token!);
 
         // Get driver profile after login
         await _loadDriverProfile();
@@ -651,13 +649,13 @@ class AuthProvider extends ChangeNotifier {
       DriverLocationService.stopLocationTracking();
       print('✅ Location tracking stopped');
 
-      // Clear all data
+      // Use AuthService to handle logout
+      await _authService.logout();
+
+      // Clear local state
       _driver = null;
       _token = null;
       _error = null;
-
-      await StorageService.clearAll();
-      _apiService.setToken('');
 
       _isLoading = false;
       print('✅ Logout completed successfully');
@@ -673,10 +671,9 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
 
       try {
-        await StorageService.clearAll();
-        _apiService.setToken('');
+        await _authService.logout();
       } catch (clearError) {
-        print('💥 Error clearing storage: $clearError');
+        print('💥 Error clearing auth: $clearError');
       }
 
       notifyListeners();

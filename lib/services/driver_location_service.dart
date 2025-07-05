@@ -229,10 +229,23 @@ class DriverLocationService {
   static Future<http.Response> _makeLocationUpdateRequest(
       Position position) async {
     final driverToken = await _getDriverToken();
+
+    print('🔍 DriverLocationService Debug:');
+    print('  - Token found: ${driverToken != null}');
+    print('  - Token preview: ${driverToken?.substring(0, 20) ?? 'NULL'}...');
+
     if (driverToken == null) {
+      print('❌ No driver auth token available in DriverLocationService');
+      print('🔍 Checking SharedPreferences keys...');
+
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      print('🔍 Available keys: $keys');
+
       throw Exception('No driver auth token available');
     }
 
+    print('📡 Making API call to update location...');
     return await http
         .post(
           Uri.parse('${AppConfig.baseUrl}${AppConfig.driverUpdateLocation}'),
@@ -251,7 +264,8 @@ class DriverLocationService {
   /// Get driver auth token from storage
   static Future<String?> _getDriverToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
+    // Use the same key as backend response: accessToken
+    return prefs.getString('accessToken');
   }
 
   /// Manual location update (called when driver accepts order)

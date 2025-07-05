@@ -105,17 +105,52 @@ class Order {
 
   // Create Order from FCM notification data
   factory Order.fromFCMData(Map<String, dynamic> data) {
+    // Parse addresses from new format (they come as JSON strings)
+    Map<String, dynamic> fromAddress = {};
+    Map<String, dynamic> toAddress = {};
+
+    try {
+      if (data['from_address'] != null) {
+        fromAddress = json.decode(data['from_address']);
+      }
+      if (data['to_address'] != null) {
+        toAddress = json.decode(data['to_address']);
+      }
+    } catch (e) {
+      print('Error parsing address data: $e');
+    }
+
+    // Try to get order ID from new format first, then old format
+    final orderIdStr =
+        data['oderId']?.toString() ?? data['order_id']?.toString() ?? '0';
+    final orderId = int.tryParse(orderIdStr) ?? 0;
+
     return Order(
-      id: int.tryParse(data['order_id']?.toString() ?? '0') ?? 0,
+      id: orderId,
       fromAddress: OrderAddress(
-        lat: double.tryParse(data['from_lat']?.toString() ?? '0') ?? 0.0,
-        lon: double.tryParse(data['from_lon']?.toString() ?? '0') ?? 0.0,
-        desc: data['from_desc']?.toString() ?? '',
+        // New format
+        lat: double.tryParse(fromAddress['lat']?.toString() ?? '0') ??
+            // Old format fallback
+            double.tryParse(data['from_lat']?.toString() ?? '0') ??
+            0.0,
+        lon: double.tryParse(fromAddress['lon']?.toString() ?? '0') ??
+            double.tryParse(data['from_lon']?.toString() ?? '0') ??
+            0.0,
+        desc: fromAddress['desc']?.toString() ??
+            data['from_desc']?.toString() ??
+            '',
       ),
       toAddress: OrderAddress(
-        lat: double.tryParse(data['to_lat']?.toString() ?? '0') ?? 0.0,
-        lon: double.tryParse(data['to_lon']?.toString() ?? '0') ?? 0.0,
-        desc: data['to_desc']?.toString() ?? '',
+        // New format
+        lat: double.tryParse(toAddress['lat']?.toString() ?? '0') ??
+            // Old format fallback
+            double.tryParse(data['to_lat']?.toString() ?? '0') ??
+            0.0,
+        lon: double.tryParse(toAddress['lon']?.toString() ?? '0') ??
+            double.tryParse(data['to_lon']?.toString() ?? '0') ??
+            0.0,
+        desc:
+            toAddress['desc']?.toString() ?? data['to_desc']?.toString() ?? '',
       ),
       items: _parseItemsFromString(data['items']?.toString()),
       shippingCost:
@@ -124,8 +159,11 @@ class Order {
       statusCode: 1, // New order
       userNote: data['user_note']?.toString(),
       isSharable: false,
-      createdAt: data['created_at'] != null
-          ? DateTime.tryParse(data['created_at'].toString()) ?? DateTime.now()
+      createdAt: data['created_at'] != null || data['timestamp'] != null
+          ? DateTime.tryParse(data['created_at']?.toString() ??
+                  data['timestamp']?.toString() ??
+                  '') ??
+              DateTime.now()
           : DateTime.now(),
       updatedAt: DateTime.now(),
       user: OrderUser(
@@ -201,6 +239,13 @@ class Order {
         return 'Không xác định';
     }
   }
+
+  // Convenience getters for UI
+  String get customerName => user?.name ?? 'Không có tên';
+  String get customerPhone => user?.phoneNumber ?? '';
+  String get pickupAddress => fromAddress.desc;
+  String get dropoffAddress => toAddress.desc;
+  double get fare => shippingCost;
 
   String get formattedShippingCost {
     return '${shippingCost.toStringAsFixed(0).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')} đ';

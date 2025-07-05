@@ -8,6 +8,7 @@ import '../config/app_config.dart';
 import '../models/order.dart';
 import '../widgets/new_order_dialog.dart';
 import '../services/navigation_service.dart';
+import '../services/api_service.dart';
 import 'notification_service.dart';
 
 // Background message handler (must be top-level function)
@@ -131,7 +132,8 @@ class DriverFCMService {
   static Future<String?> _getDriverToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('auth_token');
+      // Use the correct key that matches AuthService
+      return prefs.getString('accessToken');
     } catch (e) {
       print('❌ Error getting driver token: $e');
       return null;
@@ -160,9 +162,17 @@ class DriverFCMService {
   static Future<void> _handleForegroundMessage(RemoteMessage message) async {
     try {
       final data = message.data;
-      final actionType = data['action_type']?.toString() ?? '';
 
-      print('📱 Processing foreground notification: $actionType');
+      // Support both old and new FCM formats
+      final actionType = data['action_type']?.toString() ?? '';
+      final type = data['type']?.toString() ?? '';
+      final key = data['key']?.toString() ?? '';
+
+      print('📱 Processing foreground notification:');
+      print('   - action_type: $actionType');
+      print('   - type: $type');
+      print('   - key: $key');
+      print('   - data: $data');
 
       // Create notification object
       final notification = _notificationService.createFromFCMData(
@@ -174,15 +184,18 @@ class DriverFCMService {
       // Save to local storage
       await _notificationService.addLocalNotification(notification);
 
-      // For new orders, show dialog immediately (don't show local notification)
-      if (actionType == 'new_order' || actionType == 'order_shared') {
-        // Show dialog directly for immediate action
+      // Handle new order notifications (new format - support both key "NewOder" and type "new_order_available")
+      if (type == 'new_order_available' || key == 'NewOder') {
+        print('🚚 New order notification detected (new format)');
+        await _handleNewOrderNotification(data);
+      }
+      // Handle old format
+      else if (actionType == 'new_order' || actionType == 'order_shared') {
+        print('📦 Order notification detected (old format)');
         await _handleNotificationAction(actionType, data);
       } else {
         // For other notifications, show local notification
         await _showLocalNotification(message);
-
-        // Handle other actions
         await _handleNotificationAction(actionType, data);
       }
     } catch (e) {
@@ -195,8 +208,13 @@ class DriverFCMService {
     try {
       final data = message.data;
       final actionType = data['action_type']?.toString() ?? '';
+      final type = data['type']?.toString() ?? '';
+      final key = data['key']?.toString() ?? '';
 
-      print('🔔 Processing background notification: $actionType');
+      print('🔔 Processing background notification:');
+      print('   - action_type: $actionType');
+      print('   - type: $type');
+      print('   - key: $key');
 
       // Create notification object
       final notificationService = NotificationService();
@@ -208,6 +226,11 @@ class DriverFCMService {
 
       // Save to local storage
       await notificationService.addLocalNotification(notification);
+
+      // Show local notification for background orders
+      if (type == 'new_order_available' || key == 'NewOder') {
+        await _showLocalNotificationForOrder(data);
+      }
     } catch (e) {
       print('❌ Error handling background message: $e');
     }
@@ -245,11 +268,22 @@ class DriverFCMService {
   // Handle notification actions based on type
   static Future<void> _handleNotificationAction(
       String actionType, Map<String, dynamic> data) async {
-    final orderId = data['order_id']?.toString() ?? '';
+    final orderId =
+        data['order_id']?.toString() ?? data['oderId']?.toString() ?? '';
+    final type = data['type']?.toString() ?? '';
+    final key = data['key']?.toString() ?? '';
 
+    // Handle new format first
+    if (type == 'new_order_available' || key == 'NewOder') {
+      print('🚚 New order notification (new format): $orderId');
+      await _handleNewOrderNotification(data);
+      return;
+    }
+
+    // Handle old format
     switch (actionType) {
       case 'new_order':
-        print('🚚 New order notification: $orderId');
+        print('🚚 New order notification (old format): $orderId');
         await _handleNewOrderNotification(data);
         break;
 
@@ -275,37 +309,87 @@ class DriverFCMService {
   static Future<void> _handleNewOrderNotification(
       Map<String, dynamic> data) async {
     try {
-      // Parse order data from FCM
-      final order = Order.fromFCMData(data);
+      print('🚚 Processing new order notification with data: $data');
+
+      // Parse order data from FCM (new format)
+      final orderId =
+          data['oderId']?.toString() ?? data['order_id']?.toString() ?? '';
+      final distance = data['distance']?.toString() ?? '';
+      final shippingCost = data['shipping_cost']?.toString() ?? '';
+
+      // Parse addresses (they come as JSON strings)
+      Map<String, dynamic> fromAddress = {};
+      Map<String, dynamic> toAddress = {};
+
+      try {
+        if (data['from_address'] != null) {
+          fromAddress = jsonDecode(data['from_address']);
+        }
+        if (data['to_address'] != null) {
+          toAddress = jsonDecode(data['to_address']);
+        }
+      } catch (e) {
+        print('⚠️ Error parsing address data: $e');
+      }
+
+      print('📋 Order Details:');
+      print('   - Order ID: $orderId');
+      print('   - Distance: ${distance}km');
+      print('   - Shipping Cost: ${shippingCost} VND');
+      print('   - From: ${fromAddress['desc'] ?? 'Unknown'}');
+      print('   - To: ${toAddress['desc'] ?? 'Unknown'}');
 
       // Get current context
       final context = NavigationService.navigatorKey.currentContext;
       if (context == null) {
         print('❌ No context available for showing order dialog');
+        // Fallback: show local notification
+        await _showLocalNotificationForOrder(data);
         return;
       }
 
-      // Show new order dialog
-      final result = await showDialog<bool>(
-        context: context,
-        barrierDismissible:
-            false, // Không cho phép đóng dialog bằng cách tap outside
-        builder: (context) => NewOrderDialog(
-          order: order,
-          onAccepted: () {
-            print('✅ Order ${order.id} accepted by driver');
-          },
-          onDeclined: () {
-            print('❌ Order ${order.id} declined by driver');
-          },
-        ),
-      );
+      // Try to create Order object if possible (fallback to old format)
+      Order? order;
+      try {
+        order = Order.fromFCMData(data);
+      } catch (e) {
+        print(
+            '⚠️ Could not create Order object from FCM data, using simple dialog: $e');
+      }
 
-      if (result == true) {
-        print('🎉 Driver accepted order ${order.id}');
-        // TODO: Navigate to order tracking screen or update UI
+      // Show dialog based on available data
+      if (order != null) {
+        // Use existing NewOrderDialog if Order object is available
+        final result = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => NewOrderDialog(
+            order: order!,
+            onAccepted: () {
+              print('✅ Order ${order!.id} accepted by driver');
+            },
+            onDeclined: () {
+              print('❌ Order ${order!.id} declined by driver');
+            },
+          ),
+        );
+
+        if (result == true) {
+          print('🎉 Driver accepted order ${order.id}');
+        } else {
+          print('💔 Driver declined order ${order.id}');
+        }
       } else {
-        print('💔 Driver declined order ${order.id}');
+        // Use simple dialog for new FCM format
+        await _showSimpleOrderDialog(
+          context: context,
+          orderId: orderId,
+          fromAddress: fromAddress,
+          toAddress: toAddress,
+          distance: distance,
+          shippingCost: shippingCost,
+          rawData: data,
+        );
       }
     } catch (e) {
       print('❌ Error handling new order notification: $e');
@@ -419,7 +503,15 @@ class DriverFCMService {
   // Get default title based on action type
   static String _getDefaultTitle(Map<String, dynamic> data) {
     final actionType = data['action_type']?.toString() ?? '';
+    final type = data['type']?.toString() ?? '';
+    final key = data['key']?.toString() ?? '';
 
+    // Handle new format
+    if (type == 'new_order_available' || key == 'NewOder') {
+      return '🚚 Đơn hàng mới cần giao!';
+    }
+
+    // Handle old format
     switch (actionType) {
       case 'new_order':
         return '🚚 Đơn hàng mới';
@@ -435,8 +527,35 @@ class DriverFCMService {
   // Get default body based on action type
   static String _getDefaultBody(Map<String, dynamic> data) {
     final actionType = data['action_type']?.toString() ?? '';
-    final orderId = data['order_id']?.toString() ?? '';
+    final type = data['type']?.toString() ?? '';
+    final key = data['key']?.toString() ?? '';
+    final orderId =
+        data['order_id']?.toString() ?? data['oderId']?.toString() ?? '';
 
+    // Handle new format
+    if (type == 'new_order_available' || key == 'NewOder') {
+      final distance = data['distance']?.toString() ?? '';
+      final shippingCost = data['shipping_cost']?.toString() ?? '';
+      String bodyText = 'Có đơn hàng mới trong khu vực của bạn.';
+      if (distance.isNotEmpty) {
+        bodyText += ' Khoảng cách: ${distance}km';
+      }
+      if (shippingCost.isNotEmpty) {
+        try {
+          final cost = int.parse(shippingCost);
+          final formattedCost = cost.toString().replaceAllMapped(
+                RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                (Match m) => '${m[1]},',
+              );
+          bodyText += ' - Phí: ${formattedCost} VND';
+        } catch (e) {
+          bodyText += ' - Phí: $shippingCost VND';
+        }
+      }
+      return bodyText;
+    }
+
+    // Handle old format
     switch (actionType) {
       case 'new_order':
         final distance = data['distance']?.toString() ?? '';
@@ -568,5 +687,281 @@ class DriverFCMService {
     } catch (e) {
       print('❌ Error sending current token to server: $e');
     }
+  }
+
+  // Refresh and send FCM token to server
+  static Future<void> refreshFCMToken() async {
+    try {
+      print('🔄 Refreshing FCM token...');
+
+      // Get current token
+      final token = await getToken();
+      if (token != null) {
+        print('📱 Current FCM token: ${token.substring(0, 50)}...');
+
+        // Send to server
+        await _sendTokenToServer(token);
+        print('✅ FCM token refreshed and sent to server');
+      } else {
+        print('❌ No FCM token available to refresh');
+      }
+    } catch (e) {
+      print('❌ Error refreshing FCM token: $e');
+    }
+  }
+
+  // ...existing code...
+  // Show simple order dialog for new FCM format
+  static Future<void> _showSimpleOrderDialog({
+    required BuildContext context,
+    required String orderId,
+    required Map<String, dynamic> fromAddress,
+    required Map<String, dynamic> toAddress,
+    required String distance,
+    required String shippingCost,
+    required Map<String, dynamic> rawData,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.delivery_dining, color: Colors.green, size: 24),
+              SizedBox(width: 8),
+              Text('Đơn hàng mới #$orderId'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Distance and cost
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Icon(Icons.straighten, color: Colors.green),
+                            SizedBox(height: 4),
+                            Text('${distance}km',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Icon(Icons.attach_money, color: Colors.green),
+                            SizedBox(height: 4),
+                            Text('${_formatCurrency(shippingCost)} VND',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+
+                // From address
+                _buildAddressCard(
+                  title: '📍 Điểm lấy hàng',
+                  address: fromAddress['desc']?.toString() ?? 'Không xác định',
+                  lat: fromAddress['lat']?.toString(),
+                  lon: fromAddress['lon']?.toString(),
+                ),
+                SizedBox(height: 12),
+
+                // To address
+                _buildAddressCard(
+                  title: '📍 Điểm giao hàng',
+                  address: toAddress['desc']?.toString() ?? 'Không xác định',
+                  lat: toAddress['lat']?.toString(),
+                  lon: toAddress['lon']?.toString(),
+                ),
+                SizedBox(height: 16),
+
+                // Timestamp
+                if (rawData['timestamp'] != null)
+                  Text(
+                    'Thời gian: ${_formatTimestamp(rawData['timestamp'])}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+                print('❌ Order #$orderId declined by user');
+              },
+              child: Text('Từ chối', style: TextStyle(color: Colors.red)),
+            ),
+            SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+                _acceptOrder(orderId, rawData);
+              },
+              icon: Icon(Icons.check),
+              label: Text('Nhận đơn'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true) {
+      print('🎉 Driver accepted order #$orderId');
+    } else {
+      print('💔 Driver declined order #$orderId');
+    }
+  }
+
+  // Helper method to build address card
+  static Widget _buildAddressCard({
+    required String title,
+    required String address,
+    String? lat,
+    String? lon,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          SizedBox(height: 4),
+          Text(address, style: TextStyle(fontSize: 13)),
+          if (lat != null && lon != null)
+            Text(
+              'Tọa độ: $lat, $lon',
+              style: TextStyle(color: Colors.grey[600], fontSize: 11),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Accept order
+  static Future<void> _acceptOrder(
+      String orderId, Map<String, dynamic> orderData) async {
+    try {
+      print('✅ Accepting order #$orderId');
+
+      final apiService = ApiService();
+      final response = await apiService.acceptOrder(int.parse(orderId));
+
+      if (response.success) {
+        print('🎉 Order #$orderId accepted successfully');
+
+        // Navigate to order tracking screen
+        final context = NavigationService.navigatorKey.currentContext;
+        if (context != null) {
+          // TODO: Navigate to order tracking screen
+          // Navigator.pushNamed(context, '/order-tracking', arguments: orderId);
+
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Đã nhận đơn hàng #$orderId thành công!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        print('❌ Failed to accept order: ${response.message}');
+        _showErrorSnackBar('Không thể nhận đơn: ${response.message}');
+      }
+    } catch (e) {
+      print('❌ Error accepting order: $e');
+      _showErrorSnackBar('Lỗi khi nhận đơn: $e');
+    }
+  }
+
+  // Helper methods
+  static String _formatCurrency(String amount) {
+    try {
+      final number = int.parse(amount);
+      return number.toString().replaceAllMapped(
+            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+            (Match m) => '${m[1]},',
+          );
+    } catch (e) {
+      return amount;
+    }
+  }
+
+  static String _formatTimestamp(String timestamp) {
+    try {
+      final date = DateTime.parse(timestamp);
+      return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return timestamp;
+    }
+  }
+
+  static void _showErrorSnackBar(String message) {
+    final context = NavigationService.navigatorKey.currentContext;
+    if (context != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Fallback local notification for orders
+  static Future<void> _showLocalNotificationForOrder(
+      Map<String, dynamic> data) async {
+    const androidDetails = AndroidNotificationDetails(
+      'driver_orders',
+      'Driver Orders',
+      channelDescription: 'Notifications for new orders',
+      importance: Importance.high,
+      priority: Priority.high,
+      sound: RawResourceAndroidNotificationSound('driver_alert'),
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      sound: 'driver_alert.wav',
+    );
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    final orderId = data['oderId'] ?? data['order_id'] ?? 'Unknown';
+    final distance = data['distance'] ?? '0';
+
+    await _localNotifications.show(
+      int.tryParse(orderId.toString()) ?? 0,
+      'Đơn hàng mới #$orderId',
+      'Khoảng cách: ${distance}km - Nhấn để xem chi tiết',
+      details,
+      payload: jsonEncode(data),
+    );
   }
 }
