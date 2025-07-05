@@ -994,9 +994,13 @@ class ApiService {
   Future<ApiResponse<Map<String, dynamic>>> acceptOrder(int orderId) async {
     try {
       print('✅ Accepting order ID: $orderId');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderAccept}/$orderId/accept');
+      print('🔑 Headers: $_headers');
 
       final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderAccept}'),
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderAccept}/$orderId/accept'),
         headers: _headers,
         body: jsonEncode({
           'order_id': orderId,
@@ -1005,20 +1009,37 @@ class ApiService {
 
       print('📊 Accept Order Response Status: ${response.statusCode}');
       print('📄 Accept Order Response Body: ${response.body}');
+      print('📋 Request Headers Sent: ${response.request?.headers}');
+
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        } else if (response.statusCode == 422) {
+          print('📝 Validation error - check request body');
+        }
+      }
 
       if (response.body.isNotEmpty) {
         final responseData = jsonDecode(response.body);
 
         if (response.statusCode == 200) {
+          print('🎉 Order accepted successfully');
           return ApiResponse.success(responseData['data'] ?? responseData);
         } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
           return ApiResponse.fromJson(responseData, null);
         }
       } else {
+        print('⚠️ Server returned empty response');
         return ApiResponse.error('Server returned empty response');
       }
     } catch (e) {
       print('💥 Accept Order Error: ${e.toString()}');
+      print('🔍 Error Type: ${e.runtimeType}');
       return ApiResponse.error('Network error: ${e.toString()}');
     }
   }
@@ -1028,9 +1049,12 @@ class ApiService {
       int orderId, String? reason) async {
     try {
       print('❌ Declining order ID: $orderId with reason: $reason');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderDecline}/$orderId/decline');
 
       final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderDecline}'),
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderDecline}/$orderId/decline'),
         headers: _headers,
         body: jsonEncode({
           'order_id': orderId,
@@ -1041,15 +1065,28 @@ class ApiService {
       print('📊 Decline Order Response Status: ${response.statusCode}');
       print('📄 Decline Order Response Body: ${response.body}');
 
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        }
+      }
+
       if (response.body.isNotEmpty) {
         final responseData = jsonDecode(response.body);
 
         if (response.statusCode == 200) {
+          print('✅ Order declined successfully');
           return ApiResponse.success(responseData['data'] ?? responseData);
         } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
           return ApiResponse.fromJson(responseData, null);
         }
       } else {
+        print('⚠️ Server returned empty response');
         return ApiResponse.error('Server returned empty response');
       }
     } catch (e) {
@@ -1155,9 +1192,12 @@ class ApiService {
   Future<ApiResponse<Map<String, dynamic>>> completeOrder(int orderId) async {
     try {
       print('🏁 Completing order ID: $orderId');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderComplete}/$orderId/complete');
 
       final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderComplete}'),
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderComplete}/$orderId/complete'),
         headers: _headers,
         body: jsonEncode({
           'order_id': orderId,
@@ -1167,15 +1207,28 @@ class ApiService {
       print('📊 Complete Order Response Status: ${response.statusCode}');
       print('📄 Complete Order Response Body: ${response.body}');
 
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        }
+      }
+
       if (response.body.isNotEmpty) {
         final responseData = jsonDecode(response.body);
 
         if (response.statusCode == 200) {
+          print('🎉 Order completed successfully');
           return ApiResponse.success(responseData['data'] ?? responseData);
         } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
           return ApiResponse.fromJson(responseData, null);
         }
       } else {
+        print('⚠️ Server returned empty response');
         return ApiResponse.error('Server returned empty response');
       }
     } catch (e) {

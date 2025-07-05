@@ -8,6 +8,7 @@ import '../services/driver_location_service.dart';
 import '../utils/gps_test_helper.dart';
 import '../utils/current_location_debugger.dart';
 import 'fcm_test_screen.dart';
+import 'order_api_test_screen.dart';
 
 class GPSTestScreen extends StatefulWidget {
   const GPSTestScreen({Key? key}) : super(key: key);
@@ -553,6 +554,26 @@ class _GPSTestScreenState extends State<GPSTestScreen> {
               label: Text('Test FCM Notifications'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+              ),
+            ),
+
+            SizedBox(height: 8),
+
+            // Order API Test Button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OrderApiTestScreen(),
+                  ),
+                );
+              },
+              icon: Icon(Icons.api),
+              label: Text('Test Order APIs'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
               ),
             ),

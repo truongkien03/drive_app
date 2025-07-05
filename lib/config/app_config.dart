@@ -21,12 +21,15 @@ class AppConfig {
 
   // Order endpoints
   static const String orderDetails = '/driver/order'; // GET /driver/order/{id}
-  static const String orderAccept = '/driver/order/accept'; // POST
-  static const String orderDecline = '/driver/order/decline'; // POST
+  static const String orderAccept =
+      '/driver/orders'; // POST /driver/orders/{order}/accept
+  static const String orderDecline =
+      '/driver/orders'; // POST /driver/orders/{order}/decline
   static const String orderInProcess = '/driver/orders/inprocess'; // GET
   static const String orderCompleted = '/driver/orders/completed'; // GET
   static const String orderCancelled = '/driver/orders/cancelled'; // GET
-  static const String orderComplete = '/driver/order/complete'; // POST
+  static const String orderComplete =
+      '/driver/orders'; // POST /driver/orders/{order}/complete
   static const String orderHistory = '/driver/orders/history'; // GET
   static const String driverStatistics = '/driver/statistics'; // GET
 
