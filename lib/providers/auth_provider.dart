@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:async';
 import '../models/driver.dart';
 import '../models/auth_token.dart';
 import '../services/api_service.dart';
@@ -8,11 +11,16 @@ import '../services/driver_location_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
+  final DatabaseReference _database = FirebaseDatabase.instance.ref();
 
   Driver? _driver;
   AuthToken? _token;
   bool _isLoading = false;
   String? _error;
+
+  // Variables for Firebase location tracking
+  Timer? _locationTimer;
+  bool _isTrackingLocationToFirebase = false;
 
   Driver? get driver => _driver;
   AuthToken? get token => _token;
@@ -156,7 +164,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final response =
-          await _apiService.loginDriverWithPassword(phoneNumber, password);
+      await _apiService.loginDriverWithPassword(phoneNumber, password);
 
       if (response.success && response.data != null) {
         _token = response.data;
@@ -191,7 +199,7 @@ class AuthProvider extends ChangeNotifier {
       _apiService.debugTokenAndHeaders();
 
       final response =
-          await _apiService.setDriverPassword(password, passwordConfirmation);
+      await _apiService.setDriverPassword(password, passwordConfirmation);
 
       if (response.success) {
         return true;
@@ -390,7 +398,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       final isCurrentlyOnline = _driver!.status == 1; // 1 = FREE/ONLINE
       final response =
-          await _apiService.setDriverOnlineStatus(!isCurrentlyOnline);
+      await _apiService.setDriverOnlineStatus(!isCurrentlyOnline);
 
       if (response.success && response.data != null) {
         _driver = response.data;
@@ -427,14 +435,15 @@ class AuthProvider extends ChangeNotifier {
         _driver = response.data;
         await StorageService.saveDriver(_driver!);
         print(
-            '✅ AuthProvider: Driver status set to ONLINE, new status: ${_driver?.status}');
+            '✅ AuthProvider: Driver status set to ONLINE, new status: ${_driver
+                ?.status}');
 
         // Start location tracking when driver goes online
         await DriverLocationService.startLocationTracking();
 
         // Force initial location update to ensure current_location is not null
         print('🔧 Ensuring current_location is set...');
-        await Future.delayed(Duration(seconds: 2)); // Wait for GPS to be ready
+        // await Future.delayed(Duration(seconds: 2)); // Wait for GPS to be ready
         await DriverLocationService.updateLocationNow();
 
         _isLoading = false;
@@ -471,7 +480,8 @@ class AuthProvider extends ChangeNotifier {
         _driver = response.data;
         await StorageService.saveDriver(_driver!);
         print(
-            '✅ AuthProvider: Driver status set to OFFLINE, new status: ${_driver?.status}');
+            '✅ AuthProvider: Driver status set to OFFLINE, new status: ${_driver
+                ?.status}');
 
         // Stop location tracking when driver goes offline
         DriverLocationService.stopLocationTracking();
@@ -482,7 +492,8 @@ class AuthProvider extends ChangeNotifier {
       } else {
         _error = response.message;
         print(
-            '❌ AuthProvider: Failed to set driver offline: ${response.message}');
+            '❌ AuthProvider: Failed to set driver offline: ${response
+                .message}');
         _isLoading = false;
         notifyListeners();
         return false;
@@ -584,7 +595,8 @@ class AuthProvider extends ChangeNotifier {
           name: 'Tài xế',
           email: '',
           avatar: '',
-          status: 1, // active
+          status: 1,
+          // active
           hasPassword: false,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -600,7 +612,8 @@ class AuthProvider extends ChangeNotifier {
         name: 'Tài xế',
         email: '',
         avatar: '',
-        status: 1, // active
+        status: 1,
+        // active
         hasPassword: false,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -716,5 +729,156 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       print('❌ Error sending FCM token after login: $e');
     }
+  }
+
+  // ============= FIREBASE REALTIME LOCATION TRACKING FUNCTIONS =============
+
+  /// Bắt đầu gửi tọa độ lên Firebase Realtime Database cách 5 giây
+  Future<void> startLocationTrackingToFirebase() async {
+    if (_driver == null) {
+      print('❌ Cannot start Firebase location tracking: no driver logged in');
+      return;
+    }
+
+    if (_isTrackingLocationToFirebase) {
+      print('⚠️ Firebase location tracking is already running');
+      return;
+    }
+
+    try {
+      print('🔥 Starting Firebase realtime location tracking every 5 seconds...');
+
+      // Kiểm tra quyền truy cập vị trí
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('❌ Location permissions are denied');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('❌ Location permissions are permanently denied');
+        return;
+      }
+
+      _isTrackingLocationToFirebase = true;
+
+      // Gửi vị trí ban đầu ngay lập tức
+      await _sendLocationToFirebase();
+
+      // Bắt đầu timer định kỳ gửi tọa độ cách 5 giây
+      _locationTimer = Timer.periodic(Duration(seconds: 5), (timer) async {
+        if (_isTrackingLocationToFirebase && _driver != null) {
+          await _sendLocationToFirebase();
+        } else {
+          timer.cancel();
+        }
+      });
+
+      print('✅ Firebase realtime location tracking started successfully');
+    } catch (e) {
+      print('💥 Error starting Firebase location tracking: $e');
+      _isTrackingLocationToFirebase = false;
+    }
+  }
+
+  /// Dừng gửi tọa độ lên Firebase
+  void stopLocationTrackingToFirebase() {
+    if (!_isTrackingLocationToFirebase) {
+      print('⚠️ Firebase location tracking is not running');
+      return;
+    }
+
+    try {
+      print('🛑 Stopping Firebase realtime location tracking...');
+
+      _locationTimer?.cancel();
+      _locationTimer = null;
+      _isTrackingLocationToFirebase = false;
+
+      print('✅ Firebase realtime location tracking stopped successfully');
+    } catch (e) {
+      print('💥 Error stopping Firebase location tracking: $e');
+    }
+  }
+
+  /// Gửi tọa độ hiện tại và user ID lên Firebase Realtime Database
+  Future<void> _sendLocationToFirebase() async {
+    if (_driver == null) return;
+
+    try {
+      // Lấy vị trí hiện tại
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 10),
+      );
+
+      // Chuẩn bị dữ liệu location với user ID
+      final locationData = {
+        'userId': _driver!.id.toString(),
+        'phoneNumber': _driver!.phoneNumber,
+        'name': _driver!.name,
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'accuracy': position.accuracy,
+        'altitude': position.altitude,
+        'speed': position.speed,
+        'heading': position.heading,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'status': _driver!.status, // Trạng thái tài xế (online/offline/busy)
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'isOnline': _driver!.status == 1, // true nếu đang online
+      };
+
+      // Gửi lên Firebase Realtime Database tại đường dẫn 'drivers_location/{userId}'
+      await _database
+          .child('drivers_location')
+          .child(_driver!.id.toString())
+          .set(locationData);
+
+      print('📍 Location sent to Firebase Realtime DB: userId=${_driver!.id}, lat=${position.latitude}, lng=${position.longitude}');
+
+    } catch (e) {
+      print('💥 Error sending location to Firebase: $e');
+    }
+  }
+
+  /// Kiểm tra trạng thái tracking Firebase
+  bool get isTrackingLocationToFirebase => _isTrackingLocationToFirebase;
+
+  /// Hàm gửi tọa độ thủ công một lần
+  Future<void> sendLocationToFirebaseNow() async {
+    if (_driver == null) {
+      print('❌ Cannot send location: no driver logged in');
+      return;
+    }
+
+    print('📍 Manually sending location to Firebase Realtime Database...');
+    await _sendLocationToFirebase();
+  }
+
+  /// Hàm xóa thông tin tài xế khỏi Firebase khi offline
+  Future<void> removeDriverFromFirebase() async {
+    if (_driver == null) return;
+
+    try {
+      await _database
+          .child('drivers_location')
+          .child(_driver!.id.toString())
+          .remove();
+
+      print('🗑️ Driver location data removed from Firebase');
+    } catch (e) {
+      print('💥 Error removing driver from Firebase: $e');
+    }
+  }
+
+  /// Override dispose để dọn dẹp timer
+  @override
+  void dispose() {
+    stopLocationTrackingToFirebase();
+    super.dispose();
   }
 }

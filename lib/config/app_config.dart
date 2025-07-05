@@ -1,6 +1,6 @@
 class AppConfig {
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
-
+  // static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'https://united-summary-pigeon.ngrok-free.app/api';
   // Driver API endpoints
   static const String driverRegisterOtp = '/driver/register/otp';
   static const String driverRegister = '/driver/register';
