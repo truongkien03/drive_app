@@ -16,6 +16,7 @@ import 'settings_screen.dart';
 import 'profile_detail_screen.dart';
 import 'real_time_map_screen.dart';
 import '../../test/gps_test_screen.dart';
+import '../test/order_test_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -750,6 +751,18 @@ class _HomeScreenState extends State<HomeScreen> {
                           context,
                           MaterialPageRoute(
                               builder: (context) => const GPSTestScreen()),
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
+                      icon: Icons.notification_important,
+                      title: '🧪 Test Nhận Đơn',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const OrderTestScreen()),
                         );
                       },
                     ),

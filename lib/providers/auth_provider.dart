@@ -638,6 +638,10 @@ class AuthProvider extends ChangeNotifier {
       try {
         await DriverFCMService.removeToken().timeout(Duration(seconds: 5));
         print('✅ FCM token removed successfully');
+
+        // Unsubscribe from driver topics
+        await DriverFCMService.unsubscribeFromDriverTopics(_driver?.id ?? 0);
+        print('✅ Unsubscribed from driver topics');
       } catch (e) {
         print('⚠️ Failed to remove FCM token: $e');
         // Continue with logout even if FCM removal fails
@@ -713,6 +717,10 @@ class AuthProvider extends ChangeNotifier {
       // Send current FCM token to server
       await DriverFCMService.sendCurrentTokenToServer();
       print('✅ FCM token sent successfully after login');
+
+      // Subscribe to driver topics for receiving orders
+      await DriverFCMService.subscribeToDriverTopics(_driver?.id ?? 0);
+      print('✅ Subscribed to driver topics successfully');
     } catch (e) {
       print('❌ Error sending FCM token after login: $e');
     }

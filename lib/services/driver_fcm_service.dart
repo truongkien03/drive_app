@@ -5,7 +5,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
-import 'navigation_service.dart';
+import '../models/order.dart';
+import '../widgets/new_order_dialog.dart';
+import '../services/navigation_service.dart';
+import 'notification_service.dart';
 
 // Background message handler (must be top-level function)
 @pragma('vm:entry-point')
@@ -18,6 +21,7 @@ class DriverFCMService {
   static FirebaseMessaging _messaging = FirebaseMessaging.instance;
   static FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
+  static final NotificationService _notificationService = NotificationService();
 
   // Initialize FCM for Driver App
   static Future<void> initialize() async {
@@ -51,6 +55,33 @@ class DriverFCMService {
     } else {
       print('❌ Driver FCM permission denied');
     }
+  }
+
+  static Future<void> _initializeLocalNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
+
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (details) {
+        _handleNotificationClick(details.payload);
+      },
+    );
+
+    print('✅ Local notifications initialized');
   }
 
   static Future<void> _handleToken() async {
@@ -98,239 +129,426 @@ class DriverFCMService {
   }
 
   static Future<String?> _getDriverToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('auth_token');
+    } catch (e) {
+      print('❌ Error getting driver token: $e');
+      return null;
+    }
   }
 
+  // Setup message handlers
   static void _setupMessageHandlers() {
+    // Foreground messages (app is open)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('🔔 Foreground FCM received: ${message.data}');
-      _handleDriverNotificationData(message.data, isBackground: false);
-      _showDriverNotification(message);
+      print('🔔 Foreground FCM: ${message.data}');
+      _handleForegroundMessage(message);
     });
 
+    // Background/terminated message tap
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('🔔 Driver app opened from notification: ${message.data}');
-      _handleNotificationClick(message.data);
+      print('🔔 Message opened app: ${message.data}');
+      _handleMessageOpenedApp(message);
     });
 
-    _messaging.getInitialMessage().then((RemoteMessage? message) {
-      if (message != null) {
-        print('🔔 Driver app launched from notification: ${message.data}');
-        _handleNotificationClick(message.data);
+    // Check for initial message (app launched from notification)
+    _checkInitialMessage();
+  }
+
+  // Handle foreground message (app is open)
+  static Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    try {
+      final data = message.data;
+      final actionType = data['action_type']?.toString() ?? '';
+
+      print('📱 Processing foreground notification: $actionType');
+
+      // Create notification object
+      final notification = _notificationService.createFromFCMData(
+        data,
+        title: message.notification?.title,
+        body: message.notification?.body,
+      );
+
+      // Save to local storage
+      await _notificationService.addLocalNotification(notification);
+
+      // For new orders, show dialog immediately (don't show local notification)
+      if (actionType == 'new_order' || actionType == 'order_shared') {
+        // Show dialog directly for immediate action
+        await _handleNotificationAction(actionType, data);
+      } else {
+        // For other notifications, show local notification
+        await _showLocalNotification(message);
+
+        // Handle other actions
+        await _handleNotificationAction(actionType, data);
       }
-    });
-  }
-
-  static void _handleDriverNotificationData(Map<String, dynamic> data,
-      {bool isBackground = true}) {
-    String? key = data['key'];
-    String? orderId = data['orderId'] ?? data['oderId'];
-
-    switch (key) {
-      case 'NewOrder':
-      case 'NewOder':
-        _handleNewOrderNotification(orderId, isBackground: isBackground);
-        break;
-      case 'OrderCancelled':
-        _handleOrderCancelledNotification(orderId);
-        break;
-      case 'OrderShared':
-        _handleOrderSharedNotification(orderId);
-        break;
-      default:
-        print('⚠️ Unknown notification key: $key');
+    } catch (e) {
+      print('❌ Error handling foreground message: $e');
     }
   }
 
-  static void _handleNewOrderNotification(String? orderId,
-      {bool isBackground = true}) {
-    if (orderId == null) return;
-    print('🆕 New order notification: $orderId');
-
-    if (!isBackground) {
-      _showNewOrderDialog(orderId);
-    }
-  }
-
-  static void _showNewOrderDialog(String orderId) {
-    final context = NavigationService.navigatorKey.currentContext;
-    if (context == null) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.delivery_dining, color: Colors.orange, size: 30),
-              SizedBox(width: 10),
-              Text('Đơn hàng mới!',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Bạn có đơn hàng mới cần xác nhận!',
-                  style: TextStyle(fontSize: 16)),
-              SizedBox(height: 10),
-              Text('Thời gian phản hồi: 60 giây',
-                  style: TextStyle(fontSize: 14, color: Colors.red)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Để sau'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Navigate using route name instead of direct class import
-                NavigationService.navigateToRoute('/order-acceptance',
-                    arguments: {'orderId': orderId});
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: Text('Xem ngay'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  static void _handleOrderCancelledNotification(String? orderId) {
-    if (orderId == null) return;
-    final context = NavigationService.navigatorKey.currentContext;
-    if (context == null) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.cancel, color: Colors.white),
-            SizedBox(width: 8),
-            Expanded(
-                child: Text('Đơn hàng #$orderId đã bị hủy bởi khách hàng')),
-          ],
-        ),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  static void _handleOrderSharedNotification(String? orderId) {
-    if (orderId == null) return;
-    final context = NavigationService.navigatorKey.currentContext;
-    if (context == null) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.share, color: Colors.white),
-            SizedBox(width: 8),
-            Expanded(child: Text('Bạn được mời nhận đơn hàng #$orderId')),
-          ],
-        ),
-        backgroundColor: Colors.blue,
-      ),
-    );
-  }
-
-  static void _handleNotificationClick(Map<String, dynamic> data) {
-    String? link = data['link'];
-    String? orderId = data['orderId'] ?? data['oderId'];
-
-    if (link != null && orderId != null) {
-      switch (link) {
-        case 'driver://AwaitAcceptOder':
-        case 'driver://AwaitAcceptOrder':
-          NavigationService.navigateToRoute('/order-acceptance',
-              arguments: {'orderId': orderId});
-          break;
-        case 'driver://OrderShared':
-          NavigationService.navigateToRoute('/shared-order',
-              arguments: {'orderId': orderId});
-          break;
-        default:
-          print('⚠️ Unknown deep link: $link');
-      }
-    }
-  }
-
-  static void _showDriverNotification(RemoteMessage message) {
-    final title = message.notification?.title ?? '🚚 Thông báo tài xế';
-    final body = message.notification?.body ?? 'Bạn có thông báo mới';
-
-    _localNotifications.show(
-      message.hashCode,
-      title,
-      body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'driver_orders',
-          'Driver Orders',
-          channelDescription: 'Notifications for driver orders',
-          importance: Importance.max,
-          priority: Priority.high,
-          showWhen: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-      ),
-      payload: jsonEncode(message.data),
-    );
-  }
-
-  static Future<void> _initializeLocalNotifications() async {
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
-
-    await _localNotifications.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        if (response.payload != null) {
-          try {
-            Map<String, dynamic> data = jsonDecode(response.payload!);
-            _handleNotificationClick(data);
-          } catch (e) {
-            print('Error parsing notification payload: $e');
-          }
-        }
-      },
-    );
-  }
-
+  // Handle background message (must be static top-level function)
   static Future<void> handleBackgroundMessage(RemoteMessage message) async {
-    print('🔔 Handling background message: ${message.data}');
-    _handleDriverNotificationData(message.data, isBackground: true);
+    try {
+      final data = message.data;
+      final actionType = data['action_type']?.toString() ?? '';
+
+      print('🔔 Processing background notification: $actionType');
+
+      // Create notification object
+      final notificationService = NotificationService();
+      final notification = notificationService.createFromFCMData(
+        data,
+        title: message.notification?.title,
+        body: message.notification?.body,
+      );
+
+      // Save to local storage
+      await notificationService.addLocalNotification(notification);
+    } catch (e) {
+      print('❌ Error handling background message: $e');
+    }
   }
 
+  // Handle message when app is opened from notification
+  static Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
+    try {
+      final data = message.data;
+      final actionType = data['action_type']?.toString() ?? '';
+
+      print('📱 App opened from notification: $actionType');
+
+      // Handle navigation based on action type
+      await _handleNotificationAction(actionType, data);
+    } catch (e) {
+      print('❌ Error handling message opened app: $e');
+    }
+  }
+
+  // Check for initial message when app starts
+  static Future<void> _checkInitialMessage() async {
+    try {
+      RemoteMessage? initialMessage = await _messaging.getInitialMessage();
+
+      if (initialMessage != null) {
+        print('🔔 App launched from notification: ${initialMessage.data}');
+        await _handleMessageOpenedApp(initialMessage);
+      }
+    } catch (e) {
+      print('❌ Error checking initial message: $e');
+    }
+  }
+
+  // Handle notification actions based on type
+  static Future<void> _handleNotificationAction(
+      String actionType, Map<String, dynamic> data) async {
+    final orderId = data['order_id']?.toString() ?? '';
+
+    switch (actionType) {
+      case 'new_order':
+        print('🚚 New order notification: $orderId');
+        await _handleNewOrderNotification(data);
+        break;
+
+      case 'order_cancelled':
+        print('❌ Order cancelled: $orderId');
+        _showOrderCancelledMessage(orderId);
+        break;
+
+      case 'order_shared':
+        print('🤝 Order shared: $orderId');
+        final sharedBy = data['shared_by']?.toString() ?? '';
+        print('   Shared by driver: $sharedBy');
+        await _handleSharedOrderNotification(data);
+        break;
+
+      default:
+        print('🔔 System notification');
+        break;
+    }
+  }
+
+  // Handle new order notification - show dialog
+  static Future<void> _handleNewOrderNotification(
+      Map<String, dynamic> data) async {
+    try {
+      // Parse order data from FCM
+      final order = Order.fromFCMData(data);
+
+      // Get current context
+      final context = NavigationService.navigatorKey.currentContext;
+      if (context == null) {
+        print('❌ No context available for showing order dialog');
+        return;
+      }
+
+      // Show new order dialog
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible:
+            false, // Không cho phép đóng dialog bằng cách tap outside
+        builder: (context) => NewOrderDialog(
+          order: order,
+          onAccepted: () {
+            print('✅ Order ${order.id} accepted by driver');
+          },
+          onDeclined: () {
+            print('❌ Order ${order.id} declined by driver');
+          },
+        ),
+      );
+
+      if (result == true) {
+        print('🎉 Driver accepted order ${order.id}');
+        // TODO: Navigate to order tracking screen or update UI
+      } else {
+        print('💔 Driver declined order ${order.id}');
+      }
+    } catch (e) {
+      print('❌ Error handling new order notification: $e');
+    }
+  }
+
+  // Handle shared order notification
+  static Future<void> _handleSharedOrderNotification(
+      Map<String, dynamic> data) async {
+    try {
+      // Parse order data from FCM (shared orders có thể có format khác)
+      final order = Order.fromFCMData(data);
+      final sharedBy = data['shared_by']?.toString() ?? '';
+
+      // Get current context
+      final context = NavigationService.navigatorKey.currentContext;
+      if (context == null) {
+        print('❌ No context available for showing shared order dialog');
+        return;
+      }
+
+      // Show shared order dialog với thông tin bổ sung
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => NewOrderDialog(
+          order: order,
+          onAccepted: () {
+            print('✅ Shared order ${order.id} accepted by driver');
+          },
+          onDeclined: () {
+            print('❌ Shared order ${order.id} declined by driver');
+          },
+        ),
+      );
+
+      if (result == true) {
+        print(
+            '🎉 Driver accepted shared order ${order.id} from driver $sharedBy');
+      } else {
+        print('💔 Driver declined shared order ${order.id}');
+      }
+    } catch (e) {
+      print('❌ Error handling shared order notification: $e');
+    }
+  }
+
+  // Show order cancelled message
+  static void _showOrderCancelledMessage(String orderId) {
+    final context = NavigationService.navigatorKey.currentContext;
+    if (context == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('❌ Đơn hàng #$orderId đã bị khách hàng hủy'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Đóng',
+          textColor: Colors.white,
+          onPressed: () {},
+        ),
+      ),
+    );
+  }
+
+  // Show local notification
+  static Future<void> _showLocalNotification(RemoteMessage message) async {
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'driver_channel',
+        'Driver Notifications',
+        channelDescription: 'Notifications for driver app',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        color: Color(0xFF2196F3),
+        playSound: true,
+        enableVibration: true,
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      const notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      final title =
+          message.notification?.title ?? _getDefaultTitle(message.data);
+      final body = message.notification?.body ?? _getDefaultBody(message.data);
+
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title,
+        body,
+        notificationDetails,
+        payload: jsonEncode(message.data),
+      );
+
+      print('✅ Local notification shown: $title');
+    } catch (e) {
+      print('❌ Error showing local notification: $e');
+    }
+  }
+
+  // Get default title based on action type
+  static String _getDefaultTitle(Map<String, dynamic> data) {
+    final actionType = data['action_type']?.toString() ?? '';
+
+    switch (actionType) {
+      case 'new_order':
+        return '🚚 Đơn hàng mới';
+      case 'order_cancelled':
+        return '❌ Đơn hàng bị hủy';
+      case 'order_shared':
+        return '🤝 Đơn hàng chia sẻ';
+      default:
+        return '🔔 Thông báo mới';
+    }
+  }
+
+  // Get default body based on action type
+  static String _getDefaultBody(Map<String, dynamic> data) {
+    final actionType = data['action_type']?.toString() ?? '';
+    final orderId = data['order_id']?.toString() ?? '';
+
+    switch (actionType) {
+      case 'new_order':
+        final distance = data['distance']?.toString() ?? '';
+        return 'Có đơn hàng mới #$orderId${distance.isNotEmpty ? ' (cách $distance km)' : ''}';
+      case 'order_cancelled':
+        return 'Đơn hàng #$orderId đã bị hủy bởi khách hàng';
+      case 'order_shared':
+        final sharedBy = data['shared_by']?.toString() ?? '';
+        return 'Bạn được mời nhận đơn hàng #$orderId${sharedBy.isNotEmpty ? ' từ tài xế #$sharedBy' : ''}';
+      default:
+        return 'Bạn có thông báo mới';
+    }
+  }
+
+  // Handle notification click
+  static void _handleNotificationClick(String? payload) {
+    if (payload != null) {
+      try {
+        final data = jsonDecode(payload);
+        final actionType = data['action_type']?.toString() ?? '';
+        print('🔔 Notification clicked: $actionType');
+
+        // Handle navigation
+        _handleNotificationAction(actionType, data);
+      } catch (e) {
+        print('❌ Error handling notification click: $e');
+      }
+    }
+  }
+
+  // Remove FCM token when logout
   static Future<void> removeToken() async {
     try {
       final driverToken = await _getDriverToken();
-      if (driverToken != null) {
-        await http.delete(
-          Uri.parse('${AppConfig.baseUrl}${AppConfig.driverFCMToken}'),
-          headers: {
-            'Authorization': 'Bearer $driverToken',
-            'Content-Type': 'application/json',
-          },
-        );
+      if (driverToken == null) {
+        print('⚠️ No driver auth token for removing FCM token');
+        return;
       }
 
-      await _messaging.deleteToken();
-      print('✅ Driver FCM token removed');
+      final response = await http.delete(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverFCMToken}'),
+        headers: {
+          'Authorization': 'Bearer $driverToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print('✅ Driver FCM token removed from server');
+      } else {
+        print('❌ Failed to remove FCM token: ${response.statusCode}');
+      }
     } catch (e) {
       print('❌ Error removing FCM token: $e');
     }
   }
 
+  // Subscribe to driver topic
+  static Future<void> subscribeToDriverTopic(int driverId) async {
+    try {
+      await _messaging.subscribeToTopic('driver-$driverId');
+      print('✅ Subscribed to topic: driver-$driverId');
+    } catch (e) {
+      print('❌ Error subscribing to driver topic: $e');
+    }
+  }
+
+  // Unsubscribe from driver topic
+  static Future<void> unsubscribeFromDriverTopic(int driverId) async {
+    try {
+      await _messaging.unsubscribeFromTopic('driver-$driverId');
+      print('✅ Unsubscribed from topic: driver-$driverId');
+    } catch (e) {
+      print('❌ Error unsubscribing from driver topic: $e');
+    }
+  }
+
+  // Subscribe to all driver topics for receiving orders
+  static Future<void> subscribeToDriverTopics(int driverId) async {
+    try {
+      // Subscribe to general driver topic
+      await _messaging.subscribeToTopic('all-drivers');
+      print('✅ Subscribed to topic: all-drivers');
+
+      // Subscribe to specific driver topic (if driverId is valid)
+      if (driverId > 0) {
+        await _messaging.subscribeToTopic('driver-$driverId');
+        print('✅ Subscribed to topic: driver-$driverId');
+      }
+    } catch (e) {
+      print('❌ Error subscribing to driver topics: $e');
+    }
+  }
+
+  // Unsubscribe from all driver topics
+  static Future<void> unsubscribeFromDriverTopics(int driverId) async {
+    try {
+      // Unsubscribe from general driver topic
+      await _messaging.unsubscribeFromTopic('all-drivers');
+      print('✅ Unsubscribed from topic: all-drivers');
+
+      // Unsubscribe from specific driver topic (if driverId is valid)
+      if (driverId > 0) {
+        await _messaging.unsubscribeFromTopic('driver-$driverId');
+        print('✅ Unsubscribed from topic: driver-$driverId');
+      }
+    } catch (e) {
+      print('❌ Error unsubscribing from driver topics: $e');
+    }
+  }
+
+  // Get current FCM token
   static Future<String?> getToken() async {
     try {
       return await _messaging.getToken();
@@ -340,17 +558,15 @@ class DriverFCMService {
     }
   }
 
+  // Send current token to server manually
   static Future<void> sendCurrentTokenToServer() async {
     try {
-      String? token = await _messaging.getToken();
+      final token = await getToken();
       if (token != null) {
-        print('📱 Sending current FCM token to server: $token');
         await _sendTokenToServer(token);
-      } else {
-        print('⚠️ No FCM token available to send');
       }
     } catch (e) {
-      print('❌ Error sending current FCM token: $e');
+      print('❌ Error sending current token to server: $e');
     }
   }
 }

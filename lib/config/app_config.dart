@@ -19,6 +19,11 @@ class AppConfig {
   // FCM endpoints
   static const String driverFCMToken = '/driver/fcm/token';
 
+  // Order endpoints
+  static const String orderDetails = '/driver/order'; // GET /driver/order/{id}
+  static const String orderAccept = '/driver/order/accept'; // POST
+  static const String orderDecline = '/driver/order/decline'; // POST
+
   // File upload endpoints
   static const String uploadImage = '/upload/image';
 

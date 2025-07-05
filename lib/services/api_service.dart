@@ -957,4 +957,104 @@ class ApiService {
       return ApiResponse.error('Network error: ${e.toString()}');
     }
   }
+
+  // Order Management APIs
+
+  /// Get order details by ID
+  Future<ApiResponse<Map<String, dynamic>>> getOrderDetails(int orderId) async {
+    try {
+      print('🔍 Getting order details for ID: $orderId');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderDetails}/$orderId'),
+        headers: _headers,
+      );
+
+      print('📊 Order Details Response Status: ${response.statusCode}');
+      print('📄 Order Details Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Get Order Details Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Accept an order
+  Future<ApiResponse<Map<String, dynamic>>> acceptOrder(int orderId) async {
+    try {
+      print('✅ Accepting order ID: $orderId');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderAccept}'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+        }),
+      );
+
+      print('📊 Accept Order Response Status: ${response.statusCode}');
+      print('📄 Accept Order Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Accept Order Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Decline an order
+  Future<ApiResponse<Map<String, dynamic>>> declineOrder(
+      int orderId, String? reason) async {
+    try {
+      print('❌ Declining order ID: $orderId with reason: $reason');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderDecline}'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+          'reason': reason ?? 'Driver declined',
+        }),
+      );
+
+      print('📊 Decline Order Response Status: ${response.statusCode}');
+      print('📄 Decline Order Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Decline Order Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
 }
