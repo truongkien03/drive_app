@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import '../../providers/auth_provider.dart';
 import '../../services/driver_location_service.dart';
+import '../../services/firebase_location_service.dart';
+import '../../services/location_service.dart'; // Add new LocationService
 
 class RealTimeMapScreen extends StatefulWidget {
   const RealTimeMapScreen({Key? key}) : super(key: key);
@@ -26,6 +28,7 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
   int _totalUpdates = 0;
   int _successfulUpdates = 0;
   String _accuracy = '';
+  String _driverId = '1'; // Default driver ID
 
   // Default location (Hanoi)
   static const LatLng _defaultLocation = LatLng(21.0285, 105.8542);
@@ -33,7 +36,7 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeLocationTracking();
+    _initializeLocationService();
   }
 
   @override
@@ -43,7 +46,7 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
     super.dispose();
   }
 
-  Future<void> _initializeLocationTracking() async {
+  Future<void> _initializeLocationService() async {
     // Check if driver is online first
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (!authProvider.isOnline) {
@@ -55,49 +58,29 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
 
     try {
       setState(() {
-        _locationStatus = 'Đang kiểm tra quyền GPS...';
+        _locationStatus = 'Đang khởi tạo LocationService...';
       });
 
-      // Check location permissions
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
+      // Initialize LocationService
+      await LocationService.initialize();
+
+      // Request location permission
+      bool hasPermission = await LocationService.requestLocationPermission();
+      if (!hasPermission) {
         setState(() {
-          _locationStatus = 'GPS chưa được bật trên thiết bị';
+          _locationStatus = 'Quyền GPS bị từ chối';
         });
         return;
       }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() {
-            _locationStatus = 'Quyền GPS bị từ chối';
-          });
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        setState(() {
-          _locationStatus =
-              'Quyền GPS bị từ chối vĩnh viễn - vui lòng bật trong cài đặt';
-        });
-        return;
-      }
-
-      setState(() {
-        _locationStatus = 'Đang lấy vị trí hiện tại...';
-      });
 
       // Get initial position
       await _getCurrentLocation();
 
-      // Start continuous tracking
+      // Start location tracking with 1-second intervals
       _startLocationTracking();
 
       setState(() {
-        _locationStatus = 'GPS đang hoạt động';
+        _locationStatus = 'GPS tracking hoạt động (1s interval)';
       });
     } catch (e) {
       setState(() {
@@ -108,49 +91,59 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 10),
-      );
+      Position? position = await LocationService.getCurrentLocation();
 
-      setState(() {
-        _currentPosition = position;
-        _accuracy = _getAccuracyDescription(position.accuracy);
-        _lastUpdateTime = DateTime.now().toString().substring(11, 19);
-      });
-
-      // Add to history
-      LatLng newPoint = LatLng(position.latitude, position.longitude);
-      _locationHistory.add(newPoint);
-
-      // Keep only last 50 points
-      if (_locationHistory.length > 50) {
-        _locationHistory.removeAt(0);
-      }
-
-      // Move map to current location if this is first position
-      if (!_isMapReady) {
-        _mapController.move(newPoint, 16.0);
+      if (position != null) {
         setState(() {
-          _isMapReady = true;
+          _currentPosition = position;
+          _accuracy = _getAccuracyDescription(position.accuracy);
+          _lastUpdateTime = DateTime.now().toString().substring(11, 19);
         });
-      }
 
-      print('📍 GPS Updated: ${position.latitude}, ${position.longitude}');
+        // Add to history
+        LatLng newPoint = LatLng(position.latitude, position.longitude);
+        _locationHistory.add(newPoint);
+
+        // Keep only last 50 points
+        if (_locationHistory.length > 50) {
+          _locationHistory.removeAt(0);
+        }
+
+        // Move map to current location if this is first position
+        if (!_isMapReady) {
+          _mapController.move(newPoint, 16.0);
+          setState(() {
+            _isMapReady = true;
+          });
+        }
+
+        print('📍 GPS Updated: ${position.latitude}, ${position.longitude}');
+      }
     } catch (e) {
       print('❌ Error getting current location: $e');
     }
   }
 
   void _startLocationTracking() {
-    // Update location every 30 seconds
-    _locationUpdateTimer = Timer.periodic(Duration(seconds: 30), (timer) async {
+    // Update location every 1 second
+    _locationUpdateTimer = Timer.periodic(Duration(seconds: 1), (timer) async {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       // Only track if driver is online
       if (authProvider.isOnline) {
         await _getCurrentLocation();
-        await _sendLocationToServer();
+
+        // Send location to Firebase every update
+        try {
+          await _sendLocationToFirebase();
+          _totalUpdates++;
+          setState(() {
+            _successfulUpdates++;
+          });
+        } catch (e) {
+          _totalUpdates++;
+          print('❌ Failed to send location: $e');
+        }
       } else {
         setState(() {
           _locationStatus = 'Tài xế offline - tạm dừng tracking';
@@ -159,32 +152,42 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
       }
     });
 
-    // Update map display every 5 seconds
-    _mapUpdateTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+    // Update map display every 500ms for smooth UI
+    _mapUpdateTimer = Timer.periodic(Duration(milliseconds: 500), (timer) {
       if (mounted) {
-        setState(() {
-          // Trigger UI refresh
-        });
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        // Stop map updates if driver goes offline
+        if (!authProvider.isOnline) {
+          timer.cancel();
+        } else {
+          setState(() {
+            // Trigger UI refresh
+          });
+        }
       }
     });
   }
 
-  Future<void> _sendLocationToServer() async {
+  Future<void> _sendLocationToFirebase() async {
     if (_currentPosition == null) return;
 
     try {
-      _totalUpdates++;
+      // Send to Firebase using new LocationService
+      await LocationService.updateLocationToFirebase(
+        driverId: _driverId,
+        latitude: _currentPosition!.latitude,
+        longitude: _currentPosition!.longitude,
+        accuracy: _currentPosition!.accuracy,
+        bearing: _currentPosition!.heading,
+        speed: _currentPosition!.speed,
+        isOnline: true,
+        status: 1,
+      );
 
-      // Use DriverLocationService to send to server
-      await DriverLocationService.updateLocationNow();
-
-      setState(() {
-        _successfulUpdates++;
-      });
-
-      print('✅ Location sent to server successfully');
+      print('✅ Location sent to Firebase successfully');
     } catch (e) {
-      print('❌ Failed to send location to server: $e');
+      print('❌ Failed to send location: $e');
+      throw e; // Re-throw to handle in caller
     }
   }
 
@@ -218,9 +221,55 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: () async {
-              await _getCurrentLocation();
-              await _sendLocationToServer();
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+              // Only allow manual update if driver is online
+              if (authProvider.isOnline) {
+                try {
+                  await _getCurrentLocation();
+                  await _sendLocationToFirebase();
+
+                  // Show success message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('📍 Đã cập nhật vị trí lên Firebase'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  print('🔄 Manual location update successful');
+                } catch (e) {
+                  // Show error message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ Lỗi cập nhật vị trí: $e'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+
+                  print('❌ Manual location update failed: $e');
+                }
+              } else {
+                // Show offline message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('⚠️ Tài xế đang offline - không thể cập nhật vị trí'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
             },
+          ),
+          // Nút riêng để thêm tọa độ
+          IconButton(
+            icon: Icon(Icons.add_location_alt),
+            onPressed: () async {
+              await _addLocationToFirebase();
+            },
+            tooltip: 'Thêm tọa độ lên Firebase',
           ),
         ],
       ),
@@ -275,8 +324,9 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
                           '📌 Vị trí: ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}'),
                       Text('🎯 Độ chính xác: $_accuracy'),
                       Text('⏰ Cập nhật lúc: $_lastUpdateTime'),
+                      Text('🆔 Driver ID: $_driverId'),
                       Text(
-                          '📊 API calls: $_successfulUpdates/$_totalUpdates thành công'),
+                          '📊 Firebase calls: $_successfulUpdates/$_totalUpdates thành công'),
                     ],
                   ],
                 ),
@@ -370,7 +420,7 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
                                 final success =
                                     await authProvider.setDriverOnline();
                                 if (success) {
-                                  _initializeLocationTracking();
+                                  _initializeLocationService();
                                 }
                               },
                         icon: Icon(Icons.play_arrow),
@@ -388,10 +438,14 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
                             ? null
                             : () async {
                                 await authProvider.setDriverOffline();
+
+                                // Update Firebase offline status
+                                await LocationService.updateOnlineStatus(_driverId, false);
+
                                 _locationUpdateTimer?.cancel();
                                 _mapUpdateTimer?.cancel();
                                 setState(() {
-                                  _locationStatus = 'Đã dừng tracking GPS';
+                                  _locationStatus = 'Đã dừng GPS tracking';
                                 });
                               },
                         icon: Icon(Icons.stop),
@@ -410,5 +464,84 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
         },
       ),
     );
+  }
+
+  /// Hàm riêng để thêm tọa độ lên Firebase
+  Future<void> _addLocationToFirebase() async {
+    try {
+      // Lấy vị trí hiện tại
+      Position? position = await LocationService.getCurrentLocation();
+
+      if (position == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Không thể lấy vị trí hiện tại'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      // Gửi lên Firebase
+      await LocationService.updateLocationToFirebase(
+        driverId: _driverId,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+        bearing: position.heading,
+        speed: position.speed,
+        isOnline: true,
+        status: 1,
+      );
+
+      // Cập nhật UI với vị trí mới
+      setState(() {
+        _currentPosition = position;
+        _accuracy = _getAccuracyDescription(position.accuracy);
+        _lastUpdateTime = DateTime.now().toString().substring(11, 19);
+      });
+
+      // Thêm vào lịch sử
+      LatLng newPoint = LatLng(position.latitude, position.longitude);
+      _locationHistory.add(newPoint);
+
+      if (_locationHistory.length > 50) {
+        _locationHistory.removeAt(0);
+      }
+
+      // Di chuyển map đến vị trí mới
+      _mapController.move(newPoint, 16.0);
+
+      // Hiển thị thông báo thành công
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('📍 Đã thêm tọa độ: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'Xem',
+            textColor: Colors.white,
+            onPressed: () {
+              _mapController.move(newPoint, 18.0);
+            },
+          ),
+        ),
+      );
+
+      print('✅ Location added to Firebase: ${position.latitude}, ${position.longitude}');
+
+    } catch (e) {
+      // Hiển thị lỗi
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Lỗi thêm tọa độ: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      print('❌ Error adding location to Firebase: $e');
+    }
   }
 }

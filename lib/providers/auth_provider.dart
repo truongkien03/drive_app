@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/driver_fcm_service.dart';
 import '../services/driver_location_service.dart';
+import '../services/firebase_location_service.dart'; // Add Firebase location service
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -435,15 +436,18 @@ class AuthProvider extends ChangeNotifier {
         _driver = response.data;
         await StorageService.saveDriver(_driver!);
         print(
-            '✅ AuthProvider: Driver status set to ONLINE, new status: ${_driver
-                ?.status}');
+            '✅ AuthProvider: Driver status set to ONLINE, new status: ${_driver?.status}');
 
-        // Start location tracking when driver goes online
+        // Initialize and start Firebase location tracking with 2-second intervals
+        await FirebaseLocationService.initialize();
+        await FirebaseLocationService.startTracking();
+
+        // Start original location tracking as backup
         await DriverLocationService.startLocationTracking();
 
-        // Force initial location update to ensure current_location is not null
+        // Force initial location updates to ensure current_location is not null
         print('🔧 Ensuring current_location is set...');
-        // await Future.delayed(Duration(seconds: 2)); // Wait for GPS to be ready
+        await FirebaseLocationService.updateLocationNow();
         await DriverLocationService.updateLocationNow();
 
         _isLoading = false;
@@ -480,10 +484,11 @@ class AuthProvider extends ChangeNotifier {
         _driver = response.data;
         await StorageService.saveDriver(_driver!);
         print(
-            '✅ AuthProvider: Driver status set to OFFLINE, new status: ${_driver
-                ?.status}');
+            '✅ AuthProvider: Driver status set to OFFLINE, new status: ${_driver?.status}');
 
-        // Stop location tracking when driver goes offline
+        // Stop both Firebase and original location tracking when driver goes offline
+        FirebaseLocationService.stopTracking();
+        await FirebaseLocationService.setDriverOffline();
         DriverLocationService.stopLocationTracking();
 
         _isLoading = false;
@@ -492,8 +497,7 @@ class AuthProvider extends ChangeNotifier {
       } else {
         _error = response.message;
         print(
-            '❌ AuthProvider: Failed to set driver offline: ${response
-                .message}');
+            '❌ AuthProvider: Failed to set driver offline: ${response.message}');
         _isLoading = false;
         notifyListeners();
         return false;
@@ -882,3 +886,4 @@ class AuthProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+

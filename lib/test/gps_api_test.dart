@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 /// Test script for GPS and API integration
 class GPSAPITest {
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'https://united-summary-pigeon.ngrok-free.app/api';
   static const String currentLocationEndpoint = '/driver/current-location';
 
   /// Test sending location to server
