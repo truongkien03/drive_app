@@ -18,6 +18,10 @@ class ApiService {
     _token = token;
   }
 
+  void clearToken() {
+    _token = null;
+  }
+
   String? get token => _token;
 
   Map<String, String> get _headers {
@@ -724,9 +728,17 @@ class ApiService {
 
   // Debug method to check token and headers
   void debugTokenAndHeaders() {
-    print('🔍 Debug Token and Headers:');
-    print('🔑 Current token: $_token');
-    print('📋 Headers: $_headers');
+    print('🔍 ===== TOKEN DEBUG =====');
+    print('🔑 Raw Token: $_token');
+    print('📋 Current Headers:');
+    _headers.forEach((key, value) {
+      if (key == 'Authorization') {
+        print('   $key: ${value.substring(0, 20)}...');
+      } else {
+        print('   $key: $value');
+      }
+    });
+    print('🔍 ========================');
   }
 
   // Set driver status to online
@@ -907,10 +919,13 @@ class ApiService {
   }
 
   // Update driver current location
-  Future<ApiResponse<Driver>> updateDriverLocation(
+  Future<ApiResponse<Map<String, dynamic>>> updateDriverLocation(
       double lat, double lon) async {
     try {
-      print('📍 Updating driver location: $lat, $lon');
+      print('📍 Updating driver location: lat=$lat, lon=$lon');
+
+      // Debug token and headers before API call
+      debugTokenAndHeaders();
 
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}${AppConfig.driverUpdateLocation}'),
@@ -921,39 +936,430 @@ class ApiService {
         }),
       );
 
-      print('📊 Location update response: ${response.statusCode}');
-      print('📄 Location update body: ${response.body}');
+      print('📊 Location Update Response Status: ${response.statusCode}');
+      print('📄 Location Update Response Body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        if (response.body.isNotEmpty) {
-          final responseData = jsonDecode(response.body);
-          return ApiResponse.fromJson(
-              responseData, (data) => Driver.fromJson(data));
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          print('✅ Location updated successfully');
+          return ApiResponse.success(responseData['data'] ?? responseData);
         } else {
-          print('❌ Location update failed - Empty response');
-          return ApiResponse.error('Server returned empty response');
-        }
-      } else if (response.statusCode == 401) {
-        print('🔒 Location update failed - Unauthorized');
-        return ApiResponse.error('Unauthorized - Please login again');
-      } else if (response.statusCode == 422) {
-        if (response.body.isNotEmpty) {
-          final responseData = jsonDecode(response.body);
+          print('❌ Location update failed - Status: ${response.statusCode}');
           return ApiResponse.fromJson(responseData, null);
-        } else {
-          return ApiResponse.error('Invalid location data');
         }
       } else {
-        print('❌ Location update failed - Status: ${response.statusCode}');
-        if (response.body.isNotEmpty) {
-          final responseData = jsonDecode(response.body);
-          return ApiResponse.fromJson(responseData, null);
-        } else {
-          return ApiResponse.error('Server error: ${response.statusCode}');
-        }
+        return ApiResponse.error('Server returned empty response');
       }
     } catch (e) {
       print('💥 Location Update Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Order Management APIs
+
+  /// Get order details by ID
+  Future<ApiResponse<Map<String, dynamic>>> getOrderDetails(int orderId) async {
+    try {
+      print('🔍 Getting order details for ID: $orderId');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderDetails}/$orderId'),
+        headers: _headers,
+      );
+
+      print('📊 Order Details Response Status: ${response.statusCode}');
+      print('📄 Order Details Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Get Order Details Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Accept an order
+  Future<ApiResponse<Map<String, dynamic>>> acceptOrder(int orderId) async {
+    try {
+      print('✅ Accepting order ID: $orderId');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderAccept}/$orderId/accept');
+      print('🔑 Headers: $_headers');
+
+      final response = await http.post(
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderAccept}/$orderId/accept'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+        }),
+      );
+
+      print('📊 Accept Order Response Status: ${response.statusCode}');
+      print('📄 Accept Order Response Body: ${response.body}');
+      print('📋 Request Headers Sent: ${response.request?.headers}');
+
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        } else if (response.statusCode == 422) {
+          print('📝 Validation error - check request body');
+        }
+      }
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          print('🎉 Order accepted successfully');
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('⚠️ Server returned empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Accept Order Error: ${e.toString()}');
+      print('🔍 Error Type: ${e.runtimeType}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Decline an order
+  Future<ApiResponse<Map<String, dynamic>>> declineOrder(
+      int orderId, String? reason) async {
+    try {
+      print('❌ Declining order ID: $orderId with reason: $reason');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderDecline}/$orderId/decline');
+
+      final response = await http.post(
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderDecline}/$orderId/decline'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+          'reason': reason ?? 'Driver declined',
+        }),
+      );
+
+      print('📊 Decline Order Response Status: ${response.statusCode}');
+      print('📄 Decline Order Response Body: ${response.body}');
+
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        }
+      }
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          print('✅ Order declined successfully');
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('⚠️ Server returned empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Decline Order Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Get in-process orders for driver
+  Future<ApiResponse<List<Map<String, dynamic>>>> getInProcessOrders() async {
+    try {
+      print('📋 Getting in-process orders');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderInProcess}'),
+        headers: _headers,
+      );
+
+      print('📊 In-Process Orders Response Status: ${response.statusCode}');
+      print('📄 In-Process Orders Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          final orders = responseData['data'] as List? ?? [];
+          return ApiResponse.success(List<Map<String, dynamic>>.from(orders));
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Get In-Process Orders Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Get completed orders for driver
+  Future<ApiResponse<List<Map<String, dynamic>>>> getCompletedOrders() async {
+    try {
+      print('✅ Getting completed orders');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderCompleted}'),
+        headers: _headers,
+      );
+
+      print('📊 Completed Orders Response Status: ${response.statusCode}');
+      print('📄 Completed Orders Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          final orders = responseData['data'] as List? ?? [];
+          return ApiResponse.success(List<Map<String, dynamic>>.from(orders));
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Get Completed Orders Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Get cancelled orders for driver
+  Future<ApiResponse<List<Map<String, dynamic>>>> getCancelledOrders() async {
+    try {
+      print('❌ Getting cancelled orders');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderCancelled}'),
+        headers: _headers,
+      );
+
+      print('📊 Cancelled Orders Response Status: ${response.statusCode}');
+      print('📄 Cancelled Orders Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          final orders = responseData['data'] as List? ?? [];
+          return ApiResponse.success(List<Map<String, dynamic>>.from(orders));
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Get Cancelled Orders Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Complete an order
+  Future<ApiResponse<Map<String, dynamic>>> completeOrder(int orderId) async {
+    try {
+      print('🏁 Completing order ID: $orderId');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderComplete}/$orderId/complete');
+
+      final response = await http.post(
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderComplete}/$orderId/complete'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+        }),
+      );
+
+      print('📊 Complete Order Response Status: ${response.statusCode}');
+      print('📄 Complete Order Response Body: ${response.body}');
+
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        }
+      }
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          print('🎉 Order completed successfully');
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('⚠️ Server returned empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Complete Order Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Get order history for driver
+  Future<ApiResponse<List<Map<String, dynamic>>>> getOrderHistory() async {
+    try {
+      print('📚 Getting order history');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.orderHistory}'),
+        headers: _headers,
+      );
+
+      print('📊 Order History Response Status: ${response.statusCode}');
+      print('📄 Order History Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          final orders = responseData['data'] as List? ?? [];
+          return ApiResponse.success(List<Map<String, dynamic>>.from(orders));
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Get Order History Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Get driver statistics
+  Future<ApiResponse<Map<String, dynamic>>> getDriverStatistics() async {
+    try {
+      print('📊 Getting driver statistics');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverStatistics}'),
+        headers: _headers,
+      );
+
+      print('📊 Driver Statistics Response Status: ${response.statusCode}');
+      print('📄 Driver Statistics Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Get Driver Statistics Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // FCM Token Management APIs
+
+  /// Register FCM token for driver
+  Future<ApiResponse<Map<String, dynamic>>> registerFCMToken(
+      String fcmToken) async {
+    try {
+      print('📱 Registering FCM token: ${fcmToken.substring(0, 20)}...');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverFCMToken}'),
+        headers: _headers,
+        body: jsonEncode({
+          'fcm_token': fcmToken,
+        }),
+      );
+
+      print('📊 Register FCM Token Response Status: ${response.statusCode}');
+      print('📄 Register FCM Token Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Register FCM Token Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  /// Remove FCM token for driver
+  Future<ApiResponse<Map<String, dynamic>>> removeFCMToken() async {
+    try {
+      print('🗑️ Removing FCM token');
+
+      final response = await http.delete(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverFCMToken}'),
+        headers: _headers,
+      );
+
+      print('📊 Remove FCM Token Response Status: ${response.statusCode}');
+      print('📄 Remove FCM Token Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Remove FCM Token Error: ${e.toString()}');
       return ApiResponse.error('Network error: ${e.toString()}');
     }
   }

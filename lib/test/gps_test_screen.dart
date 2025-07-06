@@ -7,6 +7,8 @@ import '../config/app_config.dart';
 import '../services/driver_location_service.dart';
 import '../utils/gps_test_helper.dart';
 import '../utils/current_location_debugger.dart';
+import 'fcm_test_screen.dart';
+import 'order_api_test_screen.dart';
 
 class GPSTestScreen extends StatefulWidget {
   const GPSTestScreen({Key? key}) : super(key: key);
@@ -34,11 +36,34 @@ class _GPSTestScreenState extends State<GPSTestScreen> {
   Future<void> _loadDriverToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      // Use the same key as backend response: accessToken
+      final token = prefs.getString('accessToken');
       setState(() {
         _driverToken = token;
       });
-      print('🔑 Driver token loaded: ${_driverToken?.substring(0, 20)}...');
+      print(
+          '🔑 Driver token loaded: ${_driverToken?.substring(0, 50) ?? 'NULL'}...');
+
+      if (_driverToken == null) {
+        print('❌ No token found with key "accessToken"');
+        print('🔍 Checking alternative keys...');
+
+        // Check alternative keys for debugging
+        final altToken = prefs.getString('auth_token');
+        print('🔍 auth_token: ${altToken?.substring(0, 20) ?? 'NULL'}...');
+
+        final driverToken = prefs.getString('driver_access_token');
+        print(
+            '🔍 driver_access_token: ${driverToken?.substring(0, 20) ?? 'NULL'}...');
+
+        // List all keys for debugging
+        final keys = prefs.getKeys();
+        print('🔍 Available keys: $keys');
+      } else {
+        print('✅ Token found and loaded successfully');
+        print('🔑 Token length: ${_driverToken!.length}');
+        print('🔑 Token starts with eyJ: ${_driverToken!.startsWith('eyJ')}');
+      }
     } catch (e) {
       print('❌ Error loading driver token: $e');
     }
@@ -510,6 +535,46 @@ class _GPSTestScreenState extends State<GPSTestScreen> {
                         'Time Since Last Update: ${DriverLocationService.timeSinceLastUpdate ?? "N/A"}'),
                   ],
                 ),
+              ),
+            ),
+
+            SizedBox(height: 8),
+
+            // FCM Test Button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FCMTestScreen(),
+                  ),
+                );
+              },
+              icon: Icon(Icons.notifications_active),
+              label: Text('Test FCM Notifications'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+              ),
+            ),
+
+            SizedBox(height: 8),
+
+            // Order API Test Button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OrderApiTestScreen(),
+                  ),
+                );
+              },
+              icon: Icon(Icons.api),
+              label: Text('Test Order APIs'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
               ),
             ),
           ],
