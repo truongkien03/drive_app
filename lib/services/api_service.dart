@@ -5,6 +5,7 @@ import '../config/app_config.dart';
 import '../models/api_response.dart';
 import '../models/driver.dart';
 import '../models/auth_token.dart';
+import '../models/order.dart';
 import 'firebase_storage_service.dart';
 
 class ApiService {
@@ -954,6 +955,138 @@ class ApiService {
       }
     } catch (e) {
       print('💥 Location Update Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get driver orders
+  Future<ApiResponse<List<Order>>> getDriverOrders() async {
+    try {
+      print('📦 Getting driver orders...');
+      print('🎯 GET ${AppConfig.baseUrl}${AppConfig.driverOrders}');
+      print('🔑 Using token: $_token');
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverOrders}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (_token != null) 'Authorization': 'Bearer $_token',
+        },
+      ).timeout(Duration(seconds: 30));
+
+      print('📊 Get Orders Response Status: ${response.statusCode}');
+      print('📄 Get Orders Response Body: ${response.body}');
+
+      // Kiểm tra nếu response là text thay vì JSON
+      if (response.body.trim().startsWith('The endpoint') || 
+          response.body.trim().startsWith('ERR_NGROK')) {
+        print('❌ Ngrok tunnel is offline or invalid');
+        return ApiResponse.error('Server không khả dụng - Ngrok tunnel đã offline');
+      }
+
+      if (response.body.isNotEmpty) {
+        try {
+          final responseData = jsonDecode(response.body);
+          print('🔍 Parsed Get Orders Response: $responseData');
+
+                  if (response.statusCode == 200 && responseData['data'] != null) {
+          // Kiểm tra cấu trúc response - có thể là paginated hoặc direct list
+          dynamic ordersData = responseData['data'];
+          
+          List<dynamic> ordersList;
+          if (ordersData is Map && ordersData.containsKey('data')) {
+            // Paginated response: {"data": {"current_page": 1, "data": [...]}}
+            ordersList = ordersData['data'] as List<dynamic>;
+            print('📄 Paginated response detected - current_page: ${ordersData['current_page']}');
+          } else if (ordersData is List) {
+            // Direct list response: {"data": [...]}
+            ordersList = ordersData;
+            print('📄 Direct list response detected');
+          } else {
+            print('❌ Unexpected response structure: $ordersData');
+            return ApiResponse.error('Cấu trúc dữ liệu không đúng định dạng');
+          }
+          
+          final orders = ordersList
+              .map((orderJson) {
+                try {
+                  print('🔍 Parsing order: ${orderJson['id']}');
+                  return Order.fromJson(orderJson);
+                } catch (e) {
+                  print('❌ Error parsing order ${orderJson['id']}: $e');
+                  print('❌ Order data: $orderJson');
+                  rethrow;
+                }
+              })
+              .toList();
+          print('✅ Orders retrieved successfully: ${orders.length} orders');
+          return ApiResponse.success(orders);
+        } else {
+          print('❌ Orders retrieval failed - Status: ${response.statusCode}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+        } catch (e) {
+          print('❌ Failed to parse JSON response: $e');
+          return ApiResponse.error('Lỗi định dạng dữ liệu từ server');
+        }
+      } else {
+        print('❌ Orders retrieval failed - Empty response');
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      print('💥 Get Orders Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Update order status to arrived (status_code = 3)
+  Future<ApiResponse<Order>> updateOrderArrived(int orderId, {String? note}) async {
+    try {
+      print('🚚 Updating order $orderId status to arrived...');
+      print('🎯 POST ${AppConfig.baseUrl}${AppConfig.driverOrderArrived}/$orderId/arrived');
+      print('🔑 Using token: $_token');
+
+      final requestBody = <String, dynamic>{};
+      if (note != null && note.isNotEmpty) {
+        requestBody['note'] = note;
+        requestBody['description'] = {
+          'additional_info': 'Driver arrived at delivery location'
+        };
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverOrderArrived}/$orderId/arrived'),
+        headers: _headers,
+        body: jsonEncode(requestBody),
+      ).timeout(Duration(seconds: 30));
+
+      print('📊 Update Order Arrived Response Status: ${response.statusCode}');
+      print('📄 Update Order Arrived Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        try {
+          final responseData = jsonDecode(response.body);
+          print('🔍 Parsed Update Order Arrived Response: $responseData');
+
+          if (response.statusCode == 200 && responseData['data'] != null) {
+            final updatedOrder = Order.fromJson(responseData['data']);
+            print('✅ Order status updated to arrived successfully');
+            return ApiResponse.success(updatedOrder);
+          } else {
+            print('❌ Update order arrived failed - Status: ${response.statusCode}');
+            return ApiResponse.fromJson(responseData, null);
+          }
+        } catch (e) {
+          print('❌ Failed to parse JSON response: $e');
+          return ApiResponse.error('Lỗi định dạng dữ liệu từ server');
+        }
+      } else {
+        print('❌ Update order arrived failed - Empty response');
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      print('💥 Update Order Arrived Error: ${e.toString()}');
       return ApiResponse.error('Network error: ${e.toString()}');
     }
   }

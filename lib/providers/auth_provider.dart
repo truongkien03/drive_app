@@ -438,6 +438,13 @@ class AuthProvider extends ChangeNotifier {
         print(
             '✅ AuthProvider: Driver status set to ONLINE, new status: ${_driver?.status}');
 
+        // Set driver info in Firebase service before starting tracking
+        FirebaseLocationService.setDriverInfo(
+          _driver!.id.toString(),
+          _driver!.phoneNumber,
+          _driver!.name,
+        );
+
         // Initialize and start Firebase location tracking with 2-second intervals
         await FirebaseLocationService.initialize();
         await FirebaseLocationService.startTracking();
@@ -886,4 +893,3 @@ class AuthProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-

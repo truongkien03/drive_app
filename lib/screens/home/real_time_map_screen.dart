@@ -6,7 +6,6 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import '../../providers/auth_provider.dart';
 import '../../services/driver_location_service.dart';
-import '../../services/firebase_location_service.dart';
 import '../../services/location_service.dart'; // Add new LocationService
 
 class RealTimeMapScreen extends StatefulWidget {
@@ -49,6 +48,8 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
   Future<void> _initializeLocationService() async {
     // Check if driver is online first
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    // Lấy driverId động từ authProvider
+    _driverId = authProvider.driver?.id?.toString() ?? 'unknown';
     if (!authProvider.isOnline) {
       setState(() {
         _locationStatus = 'Tài xế đang offline - không tracking GPS';
@@ -61,11 +62,10 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
         _locationStatus = 'Đang khởi tạo LocationService...';
       });
 
-      // Initialize LocationService
-      await LocationService.initialize();
+      // Không cần gọi LocationService.initialize()
 
-      // Request location permission
-      bool hasPermission = await LocationService.requestLocationPermission();
+      // Sử dụng checkLocationPermission thay cho requestLocationPermission
+      bool hasPermission = await LocationService().checkLocationPermission();
       if (!hasPermission) {
         setState(() {
           _locationStatus = 'Quyền GPS bị từ chối';
@@ -91,7 +91,8 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      Position? position = await LocationService.getCurrentLocation();
+      // Sử dụng instance thay vì static
+      Position? position = await LocationService().getCurrentLocation();
 
       if (position != null) {
         setState(() {
@@ -125,8 +126,8 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
   }
 
   void _startLocationTracking() {
-    // Update location every 1 second
-    _locationUpdateTimer = Timer.periodic(Duration(seconds: 1), (timer) async {
+    // Update location every 5 seconds
+    _locationUpdateTimer = Timer.periodic(Duration(seconds: 5), (timer) async {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       // Only track if driver is online
@@ -469,8 +470,8 @@ class _RealTimeMapScreenState extends State<RealTimeMapScreen> {
   /// Hàm riêng để thêm tọa độ lên Firebase
   Future<void> _addLocationToFirebase() async {
     try {
-      // Lấy vị trí hiện tại
-      Position? position = await LocationService.getCurrentLocation();
+      // Lấy vị trí hiện tại qua instance
+      Position? position = await LocationService().getCurrentLocation();
 
       if (position == null) {
         ScaffoldMessenger.of(context).showSnackBar(
