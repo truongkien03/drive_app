@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/driver.dart';
+import '../../utils/app_color.dart';
+import '../../utils/dimension.dart';
 import 'update_profile_screen.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
@@ -36,22 +38,22 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppColor.background,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Thông tin tài xế',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: Dimension.font_size18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColor.primary,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit, color: Colors.white),
+            icon: Icon(Icons.edit, color: Colors.white, size: Dimension.icon24),
             onPressed: () {
               Navigator.push(
                 context,
@@ -64,13 +66,34 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColor.primary),
+              ),
+            )
           : Consumer<AuthProvider>(
               builder: (context, authProvider, child) {
                 final driver = authProvider.driver;
                 if (driver == null) {
-                  return const Center(
-                    child: Text('Không có thông tin tài xế'),
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.person_off,
+                          size: Dimension.icon24 * 3,
+                          color: Colors.grey[400],
+                        ),
+                        SizedBox(height: Dimension.height16),
+                        Text(
+                          'Không có thông tin tài xế',
+                          style: TextStyle(
+                            fontSize: Dimension.font_size16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 }
                 return _buildProfileContent(driver);
@@ -82,29 +105,30 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   Widget _buildProfileContent(Driver driver) {
     return RefreshIndicator(
       onRefresh: _loadProfile,
+      color: AppColor.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
             // Header với avatar và thông tin cơ bản
             _buildProfileHeader(driver),
-            const SizedBox(height: 16),
+            SizedBox(height: Dimension.height16),
 
             // Thông tin cá nhân
             _buildPersonalInfoSection(driver),
-            const SizedBox(height: 16),
+            SizedBox(height: Dimension.height16),
 
             // Trạng thái tài khoản
             _buildAccountStatusSection(driver),
-            const SizedBox(height: 16),
+            SizedBox(height: Dimension.height16),
 
             // Tài liệu xác minh
             _buildDocumentsSection(driver),
-            const SizedBox(height: 16),
+            SizedBox(height: Dimension.height16),
 
             // Thống kê
             _buildStatsSection(driver),
-            const SizedBox(height: 100),
+            SizedBox(height: Dimension.height100),
           ],
         ),
       ),
@@ -114,100 +138,115 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   Widget _buildProfileHeader(Driver driver) {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.green, Color(0xFF4CAF50)],
+          colors: [AppColor.primary, AppColor.primary.withOpacity(0.8)],
         ),
       ),
       child: Column(
         children: [
-          const SizedBox(height: 20),
+          SizedBox(height: Dimension.height20),
           // Avatar
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: Colors.white,
-            child: driver.avatar != null && driver.avatar!.isNotEmpty
-                ? ClipOval(
-                    child: Image.network(
-                      driver.avatar!,
-                      width: 96,
-                      height: 96,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(
-                          Icons.person,
-                          size: 60,
-                          color: Colors.grey,
-                        );
-                      },
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: Dimension.width50,
+              backgroundColor: Colors.white,
+              child: driver.avatar != null && driver.avatar!.isNotEmpty
+                  ? ClipOval(
+                      child: Image.network(
+                        driver.avatar!,
+                        width: Dimension.width100,
+                        height: Dimension.height100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.person,
+                            size: Dimension.icon24 * 2.5,
+                            color: Colors.grey,
+                          );
+                        },
+                      ),
+                    )
+                  : Icon(
+                      Icons.person,
+                      size: Dimension.icon24 * 2.5,
+                      color: Colors.grey,
                     ),
-                  )
-                : const Icon(
-                    Icons.person,
-                    size: 60,
-                    color: Colors.grey,
-                  ),
+            ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: Dimension.height12),
 
           // Tên và phone
           Text(
             driver.name ?? 'Chưa cập nhật tên',
-            style: const TextStyle(
-              fontSize: 24,
+            style: TextStyle(
+              fontSize: Dimension.font_size26,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: Dimension.height4),
 
           Text(
             driver.phoneNumber,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: Dimension.font_size16,
               color: Colors.white70,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: Dimension.height8),
 
           // Rating và status
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (driver.reviewRate != null) ...[
-                const Icon(Icons.star, color: Colors.amber, size: 20),
-                const SizedBox(width: 4),
+                Icon(Icons.star, color: Colors.amber, size: Dimension.icon20),
+                SizedBox(width: Dimension.width4),
                 Text(
                   driver.reviewRate!.toStringAsFixed(1),
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: TextStyle(
+                    fontSize: Dimension.font_size16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: Dimension.width16),
               ],
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Dimension.width12,
+                  vertical: Dimension.height4,
+                ),
                 decoration: BoxDecoration(
                   color: _getStatusColor(driver.status),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Dimension.radius12),
                 ),
                 child: Text(
                   _getStatusText(driver.status),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: Dimension.font_size12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: Dimension.height20),
         ],
       ),
     );
@@ -215,10 +254,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Widget _buildPersonalInfoSection(Driver driver) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: Dimension.width16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Dimension.radius12),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -231,18 +270,28 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Thông tin cá nhân',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
+          Padding(
+            padding: EdgeInsets.all(Dimension.width16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  color: AppColor.primary,
+                  size: Dimension.icon20,
+                ),
+                SizedBox(width: Dimension.width8),
+                Text(
+                  'Thông tin cá nhân',
+                  style: TextStyle(
+                    fontSize: Dimension.font_size18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColor.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           _buildInfoTile(
             icon: Icons.person_outline,
             title: 'Tên tài xế',
@@ -276,10 +325,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Widget _buildAccountStatusSection(Driver driver) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: Dimension.width16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Dimension.radius12),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -292,18 +341,28 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Trạng thái tài khoản',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
+          Padding(
+            padding: EdgeInsets.all(Dimension.width16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.verified_user,
+                  color: AppColor.primary,
+                  size: Dimension.icon20,
+                ),
+                SizedBox(width: Dimension.width8),
+                Text(
+                  'Trạng thái tài khoản',
+                  style: TextStyle(
+                    fontSize: Dimension.font_size18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColor.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           _buildStatusTile(
             icon: Icons.verified_user,
             title: 'Trạng thái tài khoản',
@@ -338,10 +397,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     final profile = driver.profile;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: Dimension.width16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Dimension.radius12),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -354,57 +413,66 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Tài liệu xác minh',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
+          Padding(
+            padding: EdgeInsets.all(Dimension.width16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.assignment,
+                  color: AppColor.primary,
+                  size: Dimension.icon20,
+                ),
+                SizedBox(width: Dimension.width8),
+                Text(
+                  'Tài liệu xác minh',
+                  style: TextStyle(
+                    fontSize: Dimension.font_size18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColor.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           if (profile != null) ...[
             // Progress bar
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(Dimension.width16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Tiến độ hoàn thành',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: Dimension.font_size14,
                           color: Colors.grey,
                         ),
                       ),
                       Text(
                         '${(profile.completionPercentage * 100).toInt()}%',
-                        style: const TextStyle(
-                          fontSize: 14,
+                        style: TextStyle(
+                          fontSize: Dimension.font_size14,
                           fontWeight: FontWeight.w600,
                           color: Colors.green,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: Dimension.height8),
                   LinearProgressIndicator(
                     value: profile.completionPercentage,
                     backgroundColor: Colors.grey[200],
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(Colors.green),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColor.primary),
                     minHeight: 6,
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1),
 
             _buildDocumentTile(
               icon: Icons.credit_card,
@@ -443,12 +511,12 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ),
           ] else
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(Dimension.width16),
               child: Text(
                 'Chưa có thông tin tài liệu',
                 style: TextStyle(
                   color: Colors.grey[600],
-                  fontSize: 14,
+                  fontSize: Dimension.font_size14,
                 ),
               ),
             ),
@@ -459,10 +527,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Widget _buildStatsSection(Driver driver) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: Dimension.width16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Dimension.radius12),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -475,20 +543,30 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Thống kê',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
+          Padding(
+            padding: EdgeInsets.all(Dimension.width16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.analytics,
+                  color: AppColor.primary,
+                  size: Dimension.icon20,
+                ),
+                SizedBox(width: Dimension.width8),
+                Text(
+                  'Thống kê',
+                  style: TextStyle(
+                    fontSize: Dimension.font_size18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColor.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(Dimension.width16),
             child: Row(
               children: [
                 Expanded(
@@ -499,7 +577,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     color: Colors.amber,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: Dimension.width12),
                 Expanded(
                   child: _buildStatCard(
                     title: 'Tổng đơn',
@@ -512,7 +590,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+            padding: EdgeInsets.only(
+              left: Dimension.width16,
+              right: Dimension.width16,
+              bottom: Dimension.width16,
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -523,7 +605,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     color: Colors.green,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: Dimension.width12),
                 Expanded(
                   child: _buildStatCard(
                     title: 'Đã hủy',
@@ -550,28 +632,28 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     return ListTile(
       leading: Icon(
         icon,
-        color: isEmpty ? Colors.grey : Colors.green,
-        size: 24,
+        color: isEmpty ? Colors.grey : AppColor.primary,
+        size: Dimension.icon24,
       ),
       title: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
+        style: TextStyle(
+          fontSize: Dimension.font_size14,
           color: Colors.grey,
         ),
       ),
       subtitle: Text(
         value,
         style: TextStyle(
-          fontSize: 16,
+          fontSize: Dimension.font_size16,
           fontWeight: FontWeight.w500,
-          color: isEmpty ? Colors.grey : Colors.black87,
+          color: isEmpty ? Colors.grey : AppColor.textPrimary,
         ),
       ),
       trailing: showArrow
           ? Icon(
               Icons.arrow_forward_ios,
-              size: 16,
+              size: Dimension.icon16,
               color: Colors.grey[400],
             )
           : null,
@@ -590,24 +672,27 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required Color color,
   }) {
     return ListTile(
-      leading: Icon(icon, color: color),
+      leading: Icon(icon, color: color, size: Dimension.icon24),
       title: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
+        style: TextStyle(
+          fontSize: Dimension.font_size14,
           color: Colors.grey,
         ),
       ),
       trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: EdgeInsets.symmetric(
+          horizontal: Dimension.width8,
+          vertical: Dimension.height4,
+        ),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(Dimension.radius8),
         ),
         child: Text(
           status,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: Dimension.font_size12,
             fontWeight: FontWeight.w500,
             color: color,
           ),
@@ -625,15 +710,16 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       leading: Icon(
         icon,
         color: isCompleted ? Colors.green : Colors.grey,
+        size: Dimension.icon24,
       ),
       title: Text(
         title,
-        style: const TextStyle(fontSize: 14),
+        style: TextStyle(fontSize: Dimension.font_size14),
       ),
       trailing: Icon(
         isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
         color: isCompleted ? Colors.green : Colors.grey,
-        size: 20,
+        size: Dimension.icon20,
       ),
     );
   }
@@ -645,28 +731,28 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(Dimension.width16),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(Dimension.radius8),
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
+          Icon(icon, color: color, size: Dimension.icon24),
+          SizedBox(height: Dimension.height8),
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: Dimension.font_size20,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: Dimension.height4),
           Text(
             title,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: Dimension.font_size12,
               color: Colors.grey[600],
             ),
           ),

@@ -1,7 +1,8 @@
 class AppConfig {
-  static const String baseUrl =
-      'https://united-summary-pigeon.ngrok-free.app/api';
-
+  // static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'https://united-summary-pigeon.ngrok-free.app/api';
+  // TODO: Cập nhật URL khi ngrok tunnel thay đổi
+  // static const String baseUrl = 'https://your-new-ngrok-url.ngrok-free.app/api';
   // Driver API endpoints
   static const String driverRegisterOtp = '/driver/register/otp';
   static const String driverRegister = '/driver/register';
@@ -15,23 +16,11 @@ class AppConfig {
   static const String driverStatusOnline = '/driver/setting/status/online';
   static const String driverStatusOffline = '/driver/setting/status/offline';
   static const String driverUpdateLocation = '/driver/current-location';
+  static const String driverOrders = '/driver/orders/my-orders';
+  static const String driverOrderArrived = '/driver/orders'; // Base path for order actions
 
   // FCM endpoints
   static const String driverFCMToken = '/driver/fcm/token';
-
-  // Order endpoints
-  static const String orderDetails = '/driver/order'; // GET /driver/order/{id}
-  static const String orderAccept =
-      '/driver/orders'; // POST /driver/orders/{order}/accept
-  static const String orderDecline =
-      '/driver/orders'; // POST /driver/orders/{order}/decline
-  static const String orderInProcess = '/driver/orders/inprocess'; // GET
-  static const String orderCompleted = '/driver/orders/completed'; // GET
-  static const String orderCancelled = '/driver/orders/cancelled'; // GET
-  static const String orderComplete =
-      '/driver/orders'; // POST /driver/orders/{order}/complete
-  static const String orderHistory = '/driver/orders/history'; // GET
-  static const String driverStatistics = '/driver/statistics'; // GET
 
   // File upload endpoints
   static const String uploadImage = '/upload/image';

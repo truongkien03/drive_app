@@ -6,6 +6,8 @@ import '../models/api_response.dart';
 import '../models/driver.dart';
 import '../models/auth_token.dart';
 import 'firebase_storage_service.dart';
+import '../models/statistics.dart';
+import '../models/delivery_history.dart' as history;
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -1360,6 +1362,473 @@ class ApiService {
       }
     } catch (e) {
       print('💥 Remove FCM Token Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get active orders (đang giao)
+  Future<ApiResponse<List<Order>>> getActiveOrders({int page = 1, int perPage = 15}) async {
+    try {
+      final url = '${AppConfig.baseUrl}${AppConfig.driverOrdersActive}?page=$page&per_page=$perPage';
+      print('📦 GET $url');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      print('📊 Active Orders Response Status: ${response.statusCode}');
+      print('📄 Active Orders Response Body: ${response.body}');
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        if (response.statusCode == 200 && responseData['data'] != null) {
+          final data = responseData['data'];
+          final ordersList = (data['data'] as List).map((e) => Order.fromJson(e)).toList();
+          return ApiResponse.success(ordersList);
+        } else {
+          return ApiResponse.error('Lỗi lấy đơn hàng đang giao');
+        }
+      } else {
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get completed orders (đã giao xong)
+  Future<ApiResponse<List<Order>>> getCompletedOrders({int page = 1, int perPage = 15}) async {
+    try {
+      final url = '${AppConfig.baseUrl}${AppConfig.driverOrdersCompleted}?page=$page&per_page=$perPage';
+      print('📦 GET $url');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      print('📊 Completed Orders Response Status: ${response.statusCode}');
+      print('📄 Completed Orders Response Body: ${response.body}');
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        if (response.statusCode == 200 && responseData['data'] != null) {
+          final data = responseData['data'];
+          final ordersList = (data['data'] as List).map((e) => Order.fromJson(e)).toList();
+          return ApiResponse.success(ordersList);
+        } else {
+          return ApiResponse.error('Lỗi lấy đơn hàng đã giao xong');
+        }
+      } else {
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get cancelled orders (bị hủy)
+  Future<ApiResponse<List<Order>>> getCancelledOrders({int page = 1, int perPage = 15}) async {
+    try {
+      final url = '${AppConfig.baseUrl}${AppConfig.driverOrdersCancelled}?page=$page&per_page=$perPage';
+      print('📦 GET $url');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      print('📊 Cancelled Orders Response Status: ${response.statusCode}');
+      print('📄 Cancelled Orders Response Body: ${response.body}');
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        if (response.statusCode == 200 && responseData['data'] != null) {
+          final data = responseData['data'];
+          final ordersList = (data['data'] as List).map((e) => Order.fromJson(e)).toList();
+          return ApiResponse.success(ordersList);
+        } else {
+          return ApiResponse.error('Lỗi lấy đơn hàng bị hủy');
+        }
+      } else {
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get arriving orders (sắp giao)
+  Future<ApiResponse<List<Order>>> getArrivingOrders({int page = 1, int perPage = 15}) async {
+    try {
+      final url = '${AppConfig.baseUrl}${AppConfig.driverOrdersArriving}?page=$page&per_page=$perPage';
+      print('📦 GET $url');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      print('📊 Arriving Orders Response Status:  [32m${response.statusCode} [0m');
+      print('📄 Arriving Orders Response Body: ${response.body}');
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        if (response.statusCode == 200 && responseData['data'] != null) {
+          final data = responseData['data'];
+          final ordersList = (data['data'] as List).map((e) => Order.fromJson(e)).toList();
+          return ApiResponse.success(ordersList);
+        } else {
+          return ApiResponse.error('Lỗi lấy đơn hàng sắp giao');
+        }
+      } else {
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Đơn đang giao (status 2)
+  Future<ApiResponse<List<Order>>> getOngoingOrders() async {
+    try {
+      final response = await getDriverOrders();
+      if (response.success && response.data != null) {
+        final ongoing = response.data!.where((o) => o.statusCode == 2).toList();
+        return ApiResponse.success(ongoing);
+      } else {
+        return ApiResponse.error(response.message ?? 'Lỗi lấy đơn đang giao');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Đơn sắp giao (API arriving-list)
+  Future<ApiResponse<List<Order>>> getArrivingOrdersOnly() async {
+    try {
+      final url = '${AppConfig.baseUrl}${AppConfig.driverOrdersArriving}';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      );
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final data = responseData['data'];
+        final ordersList = (data['data'] as List).map((e) => Order.fromJson(e)).toList();
+        return ApiResponse.success(ordersList);
+      } else {
+        return ApiResponse.error('Lỗi lấy đơn sắp giao');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Đơn hoàn thành (API completed-list)
+  Future<ApiResponse<List<Order>>> getCompletedOrdersOnly() async {
+    try {
+      final url = '${AppConfig.baseUrl}${AppConfig.driverOrdersCompleted}';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      );
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final data = responseData['data'];
+        final ordersList = (data['data'] as List).map((e) => Order.fromJson(e)).toList();
+        return ApiResponse.success(ordersList);
+      } else {
+        return ApiResponse.error('Lỗi lấy đơn hoàn thành');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Đơn bị hủy (API cancelled-list)
+  Future<ApiResponse<List<Order>>> getCancelledOrdersOnly() async {
+    try {
+      final url = '${AppConfig.baseUrl}${AppConfig.driverOrdersCancelled}';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      );
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final data = responseData['data'];
+        final ordersList = (data['data'] as List).map((e) => Order.fromJson(e)).toList();
+        return ApiResponse.success(ordersList);
+      } else {
+        return ApiResponse.error('Lỗi lấy đơn bị hủy');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Gửi ảnh minh chứng giao hàng
+  Future<ApiResponse<dynamic>> uploadOrderProofImage({required int orderId, required String imageUrl, String? note}) async {
+    try {
+      final url = '${AppConfig.baseUrl}/driver/order-proof-image';
+      final body = {
+        'order_id': orderId,
+        'image_url': imageUrl,
+      };
+      if (note != null && note.isNotEmpty) {
+        body['note'] = note;
+      }
+      final response = await http.post(
+        Uri.parse(url),
+        headers: _headers,
+        body: jsonEncode(body),
+      );
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return ApiResponse.success(responseData['data']);
+      } else {
+        final responseData = jsonDecode(response.body);
+        return ApiResponse.error(responseData['message'] ?? 'Lỗi xác nhận đơn hàng');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Gửi ảnh minh chứng giao hàng (multipart/form-data)
+  Future<ApiResponse<dynamic>> uploadOrderProofImageMultipart({
+    required int orderId,
+    required File imageFile,
+    String? note,
+    required String token,
+  }) async {
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/driver/order-proof-image');
+      final request = http.MultipartRequest('POST', url);
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields['order_id'] = orderId.toString();
+      if (note != null && note.isNotEmpty) {
+        request.fields['note'] = note;
+      }
+      request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return ApiResponse.success(responseData['data']);
+      } else {
+        final responseData = jsonDecode(response.body);
+        return ApiResponse.error(responseData['message']?.toString() ?? 'Lỗi xác nhận đơn hàng');
+      }
+    } catch (e) {
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Gửi FCM token lên server
+  Future<ApiResponse<void>> sendFCMToken(String fcmToken) async {
+    try {
+      print('📤 Sending FCM token to server...');
+      
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/driver/fcm/token'),
+        headers: _headers,
+        body: jsonEncode({'fcm_token': fcmToken}),
+      );
+
+      print('📊 FCM token response status: ${response.statusCode}');
+      print('📄 FCM token response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print('✅ FCM token sent to server successfully');
+        return ApiResponse.success(null);
+      } else {
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          return ApiResponse.fromJson(responseData, null);
+        } else {
+          return ApiResponse.error('Server returned empty response');
+        }
+      }
+    } catch (e) {
+      print('❌ Error sending FCM token to server: $e');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Xóa FCM token khỏi server
+  Future<ApiResponse<void>> removeFCMToken() async {
+    try {
+      print('🗑️ Removing FCM token from server...');
+      
+      final response = await http.delete(
+        Uri.parse('${AppConfig.baseUrl}/api/driver/fcm/token'),
+        headers: _headers,
+      );
+
+      print('📊 Remove FCM token response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        print('✅ FCM token removed from server successfully');
+        return ApiResponse.success(null);
+      } else {
+        if (response.body.isNotEmpty) {
+          final responseData = jsonDecode(response.body);
+          return ApiResponse.fromJson(responseData, null);
+        } else {
+          return ApiResponse.error('Server returned empty response');
+        }
+      }
+    } catch (e) {
+      print('❌ Error removing FCM token from server: $e');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get shipper statistics
+  Future<ApiResponse<ShipperStatistics>> getShipperStatistics({
+    String? period,
+    String? startDate,
+    String? endDate,
+  }) async {
+    try {
+      print('📊 Getting shipper statistics...');
+      
+      // Build query parameters
+      final queryParams = <String, String>{};
+      if (period != null) queryParams['period'] = period;
+      if (startDate != null) queryParams['start_date'] = startDate;
+      if (endDate != null) queryParams['end_date'] = endDate;
+      
+      final uri = Uri.parse('${AppConfig.baseUrl}${AppConfig.driverStatistics}')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      
+      print('🎯 GET $uri');
+      print('🔑 Using token: $_token');
+
+      final response = await http.get(
+        uri,
+        headers: _headers,
+      ).timeout(Duration(seconds: 30));
+
+      print('📊 Statistics Response Status: ${response.statusCode}');
+      print('📄 Statistics Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        try {
+          final responseData = jsonDecode(response.body);
+          print('🔍 Parsed Statistics Response: $responseData');
+
+          if (response.statusCode == 200 && responseData['data'] != null) {
+            print('✅ Statistics retrieved successfully');
+            return ApiResponse.success(ShipperStatistics.fromJson(responseData['data']));
+          } else {
+            print('❌ Statistics retrieval failed - Status: ${response.statusCode}');
+            return ApiResponse.fromJson(responseData, null);
+          }
+        } catch (e) {
+          print('❌ Failed to parse JSON response: $e');
+          return ApiResponse.error('Lỗi định dạng dữ liệu từ server');
+        }
+      } else {
+        print('❌ Statistics retrieval failed - Empty response');
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      print('💥 Get Statistics Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get delivery history
+  Future<ApiResponse<history.DeliveryHistoryResponse>> getDeliveryHistory({
+    String? fromDate,
+    String? toDate,
+    int? status,
+    int page = 1,
+    int perPage = 15,
+    bool includeStats = false,
+  }) async {
+    try {
+      print('📦 Getting delivery history...');
+      
+      final queryParams = <String, String>{};
+      if (fromDate != null && fromDate.isNotEmpty) queryParams['from_date'] = fromDate;
+      if (toDate != null && toDate.isNotEmpty) queryParams['to_date'] = toDate;
+      if (status != null) queryParams['status'] = status.toString();
+      queryParams['page'] = page.toString();
+      queryParams['per_page'] = perPage.toString();
+      queryParams['include_stats'] = includeStats.toString();
+
+      final uri = Uri.parse('${AppConfig.baseUrl}${AppConfig.driverDeliveryHistory}')
+          .replace(queryParameters: queryParams);
+
+      print('🎯 GET $uri');
+      print('🔑 Using token: $_token');
+
+      final response = await http.get(
+        uri,
+        headers: _headers,
+      ).timeout(Duration(seconds: 30));
+
+      print('📊 Delivery History Response Status: ${response.statusCode}');
+      print('📄 Delivery History Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        try {
+          final responseData = jsonDecode(response.body);
+          print('🔍 Parsed Delivery History Response: $responseData');
+
+          if (response.statusCode == 200 && responseData['data'] != null) {
+            print('✅ Delivery history retrieved successfully');
+            return ApiResponse.success(history.DeliveryHistoryResponse.fromJson(responseData));
+          } else {
+            print('❌ Delivery history retrieval failed - Status: ${response.statusCode}');
+            return ApiResponse.fromJson(responseData, null);
+          }
+        } catch (e) {
+          print('❌ Failed to parse JSON response: $e');
+          return ApiResponse.error('Lỗi định dạng dữ liệu từ server');
+        }
+      } else {
+        print('❌ Delivery history retrieval failed - Empty response');
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      print('💥 Get Delivery History Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Get delivery details for specific order
+  Future<ApiResponse<Map<String, dynamic>>> getDeliveryDetails(int orderId) async {
+    try {
+      print('📦 Getting delivery details for order $orderId...');
+      
+      final uri = Uri.parse('${AppConfig.baseUrl}${AppConfig.driverDeliveryDetails}/$orderId/delivery-details');
+      
+      print('🎯 GET $uri');
+      print('🔑 Using token: $_token');
+
+      final response = await http.get(
+        uri,
+        headers: _headers,
+      ).timeout(Duration(seconds: 30));
+
+      print('📊 Delivery Details Response Status: ${response.statusCode}');
+      print('📄 Delivery Details Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        try {
+          final responseData = jsonDecode(response.body);
+          print('🔍 Parsed Delivery Details Response: $responseData');
+
+          if (response.statusCode == 200 && responseData['data'] != null) {
+            print('✅ Delivery details retrieved successfully');
+            return ApiResponse.success(responseData['data']);
+          } else {
+            print('❌ Delivery details retrieval failed - Status: ${response.statusCode}');
+            return ApiResponse.fromJson(responseData, null);
+          }
+        } catch (e) {
+          print('❌ Failed to parse JSON response: $e');
+          return ApiResponse.error('Lỗi định dạng dữ liệu từ server');
+        }
+      } else {
+        print('❌ Delivery details retrieval failed - Empty response');
+        return ApiResponse.error('Server trả về dữ liệu rỗng');
+      }
+    } catch (e) {
+      print('💥 Get Delivery Details Error: ${e.toString()}');
       return ApiResponse.error('Network error: ${e.toString()}');
     }
   }
