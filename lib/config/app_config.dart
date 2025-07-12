@@ -17,7 +17,18 @@ class AppConfig {
   static const String driverStatusOffline = '/driver/setting/status/offline';
   static const String driverUpdateLocation = '/driver/current-location';
   static const String driverOrders = '/driver/orders/my-orders';
-  static const String driverOrderArrived = '/driver/orders'; // Base path for order actions
+  static const String driverOrderArrived = '/driver/orders';
+  static const String driverOrdersActive = '/driver/drive/order-pending/active-list';
+  static const String driverOrdersArriving = '/driver/drive/order-pending/arriving-list';
+  static const String driverOrdersCompleted = '/driver/drive/order-pending/completed-list';
+  static const String driverOrdersCancelled = '/driver/drive/order-pending/cancelled-list';
+
+  // Statistics endpoints
+  static const String driverStatistics = '/driver/statistics/shipper';
+
+  // Delivery history endpoints
+  static const String driverDeliveryHistory = '/driver/orders/delivery-history';
+  static const String driverDeliveryDetails = '/driver/orders';
 
   // FCM endpoints
   static const String driverFCMToken = '/driver/fcm/token';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'providers/auth_provider.dart';
+import 'providers/proximity_provider.dart';
 import 'screens/auth/phone_input_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'utils/app_theme.dart';
@@ -9,6 +10,7 @@ import 'services/driver_location_service.dart';
 import 'services/driver_fcm_service.dart';
 import 'services/navigation_service.dart';
 import 'services/location_service.dart'; // Add LocationService
+import 'services/notification_service.dart'; // Add NotificationService
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +22,7 @@ void main() async {
   await DriverLocationService.initialize();
   await DriverFCMService.initialize();
   await LocationService.initialize(); // Initialize LocationService
+  await NotificationService.initialize(); // Initialize NotificationService
 
   runApp(const MyApp());
 }
@@ -32,6 +35,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ProximityProvider()),
       ],
       child: MaterialApp(
         title: 'Driver App',

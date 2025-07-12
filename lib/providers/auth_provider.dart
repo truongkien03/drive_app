@@ -9,6 +9,7 @@ import '../services/storage_service.dart';
 import '../services/driver_fcm_service.dart';
 import '../services/driver_location_service.dart';
 import '../services/firebase_location_service.dart'; // Add Firebase location service
+import '../services/notification_service.dart'; // Add NotificationService
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -660,7 +661,7 @@ class AuthProvider extends ChangeNotifier {
 
       // Remove FCM token from server before logout (but don't wait too long)
       try {
-        await DriverFCMService.removeToken().timeout(Duration(seconds: 5));
+        await NotificationService.removeTokenFromServer().timeout(Duration(seconds: 5));
         print('✅ FCM token removed successfully');
       } catch (e) {
         print('⚠️ Failed to remove FCM token: $e');
@@ -734,9 +735,14 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _sendFCMTokenToServer() async {
     try {
       print('🔔 Sending FCM token to server after login...');
-      // Send current FCM token to server
-      await DriverFCMService.sendCurrentTokenToServer();
-      print('✅ FCM token sent successfully after login');
+      
+      // Send FCM token using NotificationService
+      if (_token != null && NotificationService.isInitialized) {
+        await NotificationService.sendTokenToServer(_token!);
+        print('✅ FCM token sent successfully after login');
+      } else {
+        print('⚠️ Cannot send FCM token: token is null or NotificationService not initialized');
+      }
     } catch (e) {
       print('❌ Error sending FCM token after login: $e');
     }
