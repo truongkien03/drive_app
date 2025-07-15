@@ -739,7 +739,7 @@ class AuthProvider extends ChangeNotifier {
       // Send FCM token using NotificationService
       if (_token != null && NotificationService.isInitialized) {
         await NotificationService.sendTokenToServer(_token!);
-        print('✅ FCM token sent successfully after login');
+      print('✅ FCM token sent successfully after login');
       } else {
         print('⚠️ Cannot send FCM token: token is null or NotificationService not initialized');
       }

@@ -34,56 +34,55 @@ class ProximityProvider extends ChangeNotifier {
   }
 
   /// Hàm bật/tắt kiểm tra khoảng cách tự động
-  Future<void> toggleAutoProximityChecking(BuildContext context) async {
+  Future<void> toggleAutoProximityChecking() async {
     if (_isAutoProximityChecking) {
       // Tắt chế độ tự động
       _proximityCheckTimer?.cancel();
       _proximityCheckTimer = null;
       _isAutoProximityChecking = false;
-      print('Đã dừng kiểm tra khoảng cách tự động');
-      notifyListeners();
+      print('⏹️ Đã dừng kiểm tra khoảng cách tự động');
       return;
     }
     // Kiểm tra xem đã load đơn hàng chưa
     if (!_hasLoadedOrders) {
-      print('Chưa có dữ liệu đơn hàng, đang tải...');
+      print('📦 Chưa có dữ liệu đơn hàng, đang tải...');
       await _loadOrdersOnce();
       if (!_hasLoadedOrders) {
-        print('Không thể tải đơn hàng, không thể bật kiểm tra tự động');
+        print('❌ Không thể tải đơn hàng, không thể bật kiểm tra tự động');
         return;
       }
     }
+    await _loadOrdersOnce();
     // Bật chế độ tự động
     _isAutoProximityChecking = true;
-    print("Bắt đầu kiểm tra khoảng cách tự động");
+    print('▶️ Đã bật kiểm tra khoảng cách tự động (mỗi 2 giây)');
+    // Chạy kiểm tra ngay lập tức
     await _checkProximityToDestination();
+    // Thiết lập timer chạy mỗi 2 giây
     _proximityCheckTimer = Timer.periodic(Duration(seconds: 2), (timer) async {
       if (_isAutoProximityChecking) {
-        print("Đang tính khoảng cách...");
         await _checkProximityToDestination();
       } else {
         timer.cancel();
       }
     });
-    print('Đã bật kiểm tra khoảng cách tự động (mỗi 2 giây)');
-    notifyListeners();
   }
 
   /// Load đơn hàng từ API một lần duy nhất
   Future<void> _loadOrdersOnce() async {
     try {
-      print('Đang tải dữ liệu đơn hàng từ API...');
-      final ordersResponse = await _apiService.getDriverOrders();
-      if (!ordersResponse.success || ordersResponse.data == null) {
-        print('Không thể tải đơn hàng: ${ordersResponse.message}');
+      final api = ApiService();
+      final response = await api.getDriverOrders();
+      if (!response.success || response.data == null) {
+        print('❌ Lỗi tải đơn hàng: ${response.message ?? "Không rõ lỗi"}');
         return;
       }
-      _activeOrders = ordersResponse.data!;
+      _activeOrders = response.data;
       _hasLoadedOrders = true;
       _arrivedOrders.clear();
-      print('Đã tải thành công ${_activeOrders!.length} đơn hàng');
+      print('✅ Đã tải ${_activeOrders!.length} đơn hàng thành công');
     } catch (e) {
-      print('Lỗi khi tải đơn hàng: $e');
+      print('❌ Lỗi kết nối: ${e.toString()}');
     }
   }
 
@@ -101,7 +100,7 @@ class ProximityProvider extends ChangeNotifier {
       if (_locationHistory.length > 50) {
         _locationHistory.removeAt(0);
       }
-      print('GPS Updated (with history): [32m${position.latitude}, ${position.longitude}[0m');
+      print('GPS Updated (with history):  [32m${position.latitude}, ${position.longitude} [0m');
       notifyListeners();
     } catch (e) {
       print('Error getting current location (with history): $e');
@@ -111,57 +110,59 @@ class ProximityProvider extends ChangeNotifier {
   /// Kiểm tra khoảng cách đến địa chỉ giao hàng
   Future<void> _checkProximityToDestination() async {
     try {
-      print('Bắt đầu kiểm tra khoảng cách...');
       if (!_hasLoadedOrders || _activeOrders == null) {
-        print('Chưa có dữ liệu đơn hàng, vui lòng bấm nút để load trước');
+        print('❌ Chưa có dữ liệu đơn hàng, vui lòng bấm nút để load trước');
         return;
       }
-      if (_currentPosition == null) {
-        await getCurrentLocationWithHistory();
-      }
-      if (_currentPosition == null) {
-        print('Không thể lấy vị trí hiện tại');
-        return;
-      }
-      print('Vị trí hiện tại: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
-      print('Tổng số đơn hàng: ${_activeOrders!.length}');
-      for (final order in _activeOrders!) {
-        print('  - Đơn hàng ${order.id}: status_code = ${order.statusCode}');
-      }
+      // Luôn luôn lấy vị trí mới nhất
+
       final activeDeliveryOrders = _activeOrders!.where((order) => _canCheckProximity(order.statusCode)).toList();
       if (activeDeliveryOrders.isEmpty) {
-        print('Không có đơn hàng nào đang trong quá trình giao');
-        print('Các đơn hàng hiện có:');
+        print('📦 Không có đơn hàng nào đang trong quá trình giao');
+        print('📦 Các đơn hàng hiện có:');
         for (final order in _activeOrders!) {
           final statusText = _getStatusText(order.statusCode);
           print('   - Đơn hàng ${order.id}: status_code = ${order.statusCode} ($statusText)');
         }
+        if (_isAutoProximityChecking) {
+          _isAutoProximityChecking = false;
+          _proximityCheckTimer?.cancel();
+          _proximityCheckTimer = null;
+          print('⏹️ Đã dừng kiểm tra khoảng cách tự động (không còn đơn hàng)');
+        }
         return;
       }
-      print('Đang kiểm tra ${activeDeliveryOrders.length} đơn hàng đang giao');
+      print('📦 Đang kiểm tra ${activeDeliveryOrders.length} đơn hàng đang giao');
       for (final order in activeDeliveryOrders) {
-        print('Kiểm tra đơn hàng ${order.id} (trạng thái: ${order.statusCode})');
-
+        print('🚚 Kiểm tra đơn hàng ${order.id} (trạng thái: ${order.statusCode})');
+        _currentPosition = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 2),
+        );
+        if (_currentPosition == null) {
+          print('❌ Không thể lấy vị trí hiện tại');
+          return;
+        }
         double distance = _calculateDistance(
           _currentPosition!.latitude,
           _currentPosition!.longitude,
           order.toAddress.lat,
           order.toAddress.lon,
         );
-        print('Khoảng cách đến đơn hàng ${order.id}: ${distance.toStringAsFixed(2)}m');
-        print('Địa chỉ: ${order.toAddress.desc}');
-        print('Tọa độ: ${order.toAddress.lat}, ${order.toAddress.lon}');
-        if (distance <= 15.0 && !_arrivedOrders.contains(order.id)) {
-          print('ĐÃ TỚI! - Đơn hàng ${order.id}');
-          print('Khách hàng: ${order.customer.name} - ${order.customer.phone}');
-          print('Khoảng cách: ${distance.toStringAsFixed(2)}m');
-          print('Địa chỉ: ${order.toAddress.desc}');
+        print('📏 Khoảng cách đến đơn hàng ${order.id}: ${distance.toStringAsFixed(2)}m');
+        print('   Địa chỉ: ${order.toAddress.desc}');
+        print('   Tọa độ: ${order.toAddress.lat}, ${order.toAddress.lon}');
+        if (distance <= 50.0 && !_arrivedOrders.contains(order.id)) {
+          print('🎉 ĐÃ TỚI! - Đơn hàng ${order.id}');
+          print('   Khách hàng: ${order.customer.name} - ${order.customer.phone}');
+          print('   Khoảng cách: ${distance.toStringAsFixed(2)}m');
+          print('   Địa chỉ: ${order.toAddress.desc}');
           _arrivedOrders.add(order.id);
           await _updateOrderArrivedStatus(order.id, distance);
         }
       }
     } catch (e) {
-      print('Lỗi khi kiểm tra khoảng cách: $e');
+      print('❌ Lỗi khi kiểm tra khoảng cách: ${e.toString()}');
     }
   }
 

@@ -3,7 +3,8 @@ import 'package:country_code_picker/country_code_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/validators.dart';
-import '../../utils/app_theme.dart';
+import '../../utils/app_color.dart';
+import '../../utils/dimension.dart';
 import 'otp_verification_screen.dart';
 import 'password_login_screen.dart';
 
@@ -87,190 +88,209 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(widget.isLogin ? 'Đăng nhập' : 'Đăng ký'),
+        backgroundColor: AppColor.primary,
+        foregroundColor: Colors.white,
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 32),
+          padding: EdgeInsets.all(Dimension.width16),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: Dimension.height30),
 
-              // Logo or Icon
-              Icon(
-                Icons.local_shipping,
-                size: 80,
-                color: AppColors.primary,
-              ),
+                // Logo or Icon
+                Icon(
+                  Icons.local_shipping,
+                  size: Dimension.icon48,
+                  color: AppColor.primary,
+                ),
 
-              const SizedBox(height: 32),
+                SizedBox(height: Dimension.height30),
 
-              Text(
-                widget.isLogin ? 'Đăng nhập tài xế' : 'Đăng ký tài xế',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                textAlign: TextAlign.center,
-              ),
+                Text(
+                  widget.isLogin ? 'Đăng nhập tài xế' : 'Đăng ký tài xế',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColor.textPrimary,
+                    fontSize: Dimension.font_size20,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
 
-              const SizedBox(height: 8),
+                SizedBox(height: Dimension.height8),
 
-              Text(
-                'Nhập số điện thoại để nhận mã OTP',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                textAlign: TextAlign.center,
-              ),
+                Text(
+                  'Nhập số điện thoại để nhận mã OTP',
+                  style: TextStyle(
+                    color: AppColor.textColor,
+                    fontSize: Dimension.font_size16,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
 
-              const SizedBox(height: 32),
+                SizedBox(height: Dimension.height30),
 
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    // Phone number input
-                    Row(
-                      children: [
-                        // Country code picker
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.border),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: CountryCodePicker(
-                            onChanged: (countryCode) {
-                              setState(() {
-                                _countryCode = countryCode.dialCode!;
-                              });
-                            },
-                            initialSelection: 'VN',
-                            favorite: const ['+84', 'VN'],
-                            showCountryOnly: false,
-                            showOnlyCountryWhenClosed: false,
-                            alignLeft: false,
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        // Phone number field
-                        Expanded(
-                          child: TextFormField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            decoration: const InputDecoration(
-                              labelText: 'Số điện thoại',
-                              hintText: 'Nhập số điện thoại',
-                              prefixIcon: Icon(Icons.phone),
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      // Phone number input
+                      Row(
+                        children: [
+                          // Country code picker
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppColor.textColor),
+                              borderRadius: BorderRadius.circular(Dimension.radius8),
                             ),
-                            validator: Validators.validatePhoneNumber,
+                            child: CountryCodePicker(
+                              onChanged: (countryCode) {
+                                setState(() {
+                                  _countryCode = countryCode.dialCode!;
+                                });
+                              },
+                              initialSelection: 'VN',
+                              favorite: const ['+84', 'VN'],
+                              showCountryOnly: false,
+                              showOnlyCountryWhenClosed: false,
+                              alignLeft: false,
+                            ),
+                          ),
+
+                          SizedBox(width: Dimension.width8),
+
+                          // Phone number field
+                          Expanded(
+                            child: TextFormField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              decoration: InputDecoration(
+                                labelText: 'Số điện thoại',
+                                hintText: 'Nhập số điện thoại',
+                                prefixIcon: Icon(Icons.phone, color: AppColor.primary),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(Dimension.radius12),
+                                ),
+                              ),
+                              validator: Validators.validatePhoneNumber,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: Dimension.height30),
+
+                      // Send OTP button
+                      Consumer<AuthProvider>(
+                        builder: (context, authProvider, child) {
+                          return SizedBox(
+                            width: double.infinity,
+                            height: Dimension.height50,
+                            child: ElevatedButton(
+                              onPressed: authProvider.isLoading ? null : _sendOTP,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColor.primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(Dimension.radius12),
+                                ),
+                              ),
+                              child: authProvider.isLoading
+                                  ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                            Colors.white),
+                                      ),
+                                    )
+                                  : Text(
+                                      'Gửi mã OTP',
+                                      style: TextStyle(fontSize: Dimension.font_size16, fontWeight: FontWeight.bold),
+                                    ),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // Login with password button (only show in login mode)
+                      if (widget.isLogin) ...[
+                        SizedBox(height: Dimension.height16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: Dimension.height50,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              if (_formKey.currentState!.validate()) {
+                                final phoneNumber = Validators.formatPhoneNumber(
+                                    _countryCode + _phoneController.text);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PasswordLoginScreen(
+                                      phoneNumber: phoneNumber,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: AppColor.primary),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(Dimension.radius12),
+                              ),
+                            ),
+                            child: Text(
+                              'Đăng nhập bằng mật khẩu',
+                              style: TextStyle(fontSize: Dimension.font_size16, color: AppColor.primary, fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
                       ],
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: Dimension.height30),
+
+                // Switch between login/register
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.isLogin
+                          ? 'Chưa có tài khoản? '
+                          : 'Đã có tài khoản? ',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-
-                    const SizedBox(height: 32),
-
-                    // Send OTP button
-                    Consumer<AuthProvider>(
-                      builder: (context, authProvider, child) {
-                        return SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: authProvider.isLoading ? null : _sendOTP,
-                            child: authProvider.isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white),
-                                    ),
-                                  )
-                                : const Text(
-                                    'Gửi mã OTP',
-                                    style: TextStyle(fontSize: 16),
-                                  ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PhoneInputScreen(
+                              isLogin: !widget.isLogin,
+                            ),
                           ),
                         );
                       },
-                    ),
-
-                    // Login with password button (only show in login mode)
-                    if (widget.isLogin) ...[
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              final phoneNumber = Validators.formatPhoneNumber(
-                                  _countryCode + _phoneController.text);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => PasswordLoginScreen(
-                                    phoneNumber: phoneNumber,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                                color: Theme.of(context).primaryColor),
-                          ),
-                          child: const Text(
-                            'Đăng nhập bằng mật khẩu',
-                            style: TextStyle(fontSize: 16),
-                          ),
+                      child: Text(
+                        widget.isLogin ? 'Đăng ký' : 'Đăng nhập',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
-              ),
-
-              const Spacer(),
-
-              // Switch between login/register
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    widget.isLogin
-                        ? 'Chưa có tài khoản? '
-                        : 'Đã có tài khoản? ',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PhoneInputScreen(
-                            isLogin: !widget.isLogin,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      widget.isLogin ? 'Đăng ký' : 'Đăng nhập',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

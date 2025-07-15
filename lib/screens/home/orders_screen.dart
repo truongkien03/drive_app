@@ -13,6 +13,8 @@ import 'package:latlong2/latlong.dart';
 import 'home_screen.dart';
 import '../../services/location_order_service.dart';
 import 'package:geolocator/geolocator.dart'; // Added import for Position
+import 'package:flutter_background_service/flutter_background_service.dart'; // Added import for flutter_background_service
+import 'package:flutter_background_service_android/flutter_background_service_android.dart'; // Added import for flutter_background_service_android
 
 class _OrderTab {
   final String label;
@@ -28,20 +30,21 @@ final List<_OrderTab> _tabs = [
   _OrderTab('', 5, Icons.cancel),
 ];
 
-Future<void> openMap(double lat, double lon, {BuildContext? context}) async {
-  final googleMapsDirUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lon');
-  if (await canLaunchUrl(googleMapsDirUrl)) {
-    await launchUrl(googleMapsDirUrl, mode: LaunchMode.externalApplication);
-  } else {
-    if (context != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể mở Google Maps!')),
-      );
-    } else {
-      print("Không thể mở Google Maps");
-    }
+   Future<void> openMap(double lat, double lon, {BuildContext? context}) async {
+    final googleMapsDirUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lon');
+    if (await canLaunchUrl(googleMapsDirUrl)) {
+      await launchUrl(googleMapsDirUrl, mode: LaunchMode.externalApplication);
   }
 }
+
+// void openGoogleMaps(double lat, double lng) async {
+//   final url = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng';
+//   if (await canLaunch(url)) {
+//     await launch(url);
+//   } else {
+//     throw 'Không mở được Google Maps';
+//   }
+// }
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({Key? key}) : super(key: key);
@@ -215,15 +218,15 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Dimension.radius12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(Dimension.radius12),
-        onTap: () {
-          setState(() {
-            if (_expandedOrderIds.contains(order.id)) {
-              _expandedOrderIds.remove(order.id);
-            } else {
-              _expandedOrderIds.add(order.id);
-            }
-          });
-        },
+          onTap: () {
+            setState(() {
+              if (_expandedOrderIds.contains(order.id)) {
+                _expandedOrderIds.remove(order.id);
+              } else {
+                _expandedOrderIds.add(order.id);
+              }
+            });
+          },
         child: Column(
           children: [
             ListTile(
@@ -232,26 +235,26 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
                 child: Icon(_statusIcon(order.statusCode), color: _statusColor(order.statusCode)),
               ),
               title: Text('Đơn hàng #${order.id}', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: [
-                      Text(_statusText(order.statusCode), style: TextStyle(color: _statusColor(order.statusCode), fontWeight: FontWeight.bold)),
+            children: [
+              Text(_statusText(order.statusCode), style: TextStyle(color: _statusColor(order.statusCode), fontWeight: FontWeight.bold)),
                       SizedBox(width: Dimension.width8),
                       Text('• ', style: TextStyle(color: Colors.grey.shade400)),
                       Text('${order.shippingCost.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} VNĐ', style: const TextStyle(color: Colors.green)),
                     ],
                   ),
                   SizedBox(height: Dimension.height8),
-                  Text('Từ: ${order.fromAddress.desc}', style: TextStyle(color: Colors.grey.shade600)),
-                  Text('Đến: ${order.toAddress.desc}', style: TextStyle(color: Colors.grey.shade600)),
-                ],
-              ),
-              trailing: Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
-            ),
-            if (isExpanded) _buildOrderDetails(order),
-          ],
+              Text('Từ: ${order.fromAddress.desc}', style: TextStyle(color: Colors.grey.shade600)),
+              Text('Đến: ${order.toAddress.desc}', style: TextStyle(color: Colors.grey.shade600)),
+            ],
+          ),
+          trailing: Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
+        ),
+        if (isExpanded) _buildOrderDetails(order),
+      ],
         ),
       ),
     );
@@ -502,18 +505,17 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () async {
-                                // Đảm bảo proximity checking vẫn chạy khi mở Google Maps
-                                if (!_isAutoProximityChecking) {
-                                  // Nếu chưa bật proximity checking, bật lên
-                                  _toggleAutoProximityChecking();
+                                // Bật background service
+                                final service = FlutterBackgroundService();
+                                if (!(await service.isRunning())) {
+                                  await service.startService();
                                 }
-                                // Mở Google Maps
+                                // Mở Google Maps như cũ
                                 await openMap(order.toAddress.lat, order.toAddress.lon, context: context);
-                                // Hiển thị thông báo rằng proximity checking vẫn đang chạy
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('🗺️ Đã mở Google Maps. Kiểm tra tọa độ vẫn đang chạy trong background.'),
+                                      content: Text('🗺️ Đã mở Google Maps. Kiểm tra tọa độ đang chạy ngầm.'),
                                       backgroundColor: Colors.blue,
                                       duration: Duration(seconds: 3),
                                     ),
@@ -959,11 +961,9 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
         return;
       }
 
-      // Lấy vị trí hiện tại
-      if (_currentPosition == null) {
-        await _logicService.getCurrentLocation();
-        _currentPosition = _logicService.currentPosition;
-      }
+      // Luôn luôn lấy vị trí mới nhất
+      await _logicService.getCurrentLocation();
+      _currentPosition = _logicService.currentPosition;
 
       if (_currentPosition == null) {
         print('❌ Không thể lấy vị trí hiện tại');

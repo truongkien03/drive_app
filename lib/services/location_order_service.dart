@@ -28,8 +28,10 @@ class LocationOrderService {
         timeLimit: Duration(seconds: 10),
       );
       currentPosition = position;
+      print('Current location: ${position.latitude}, ${position.longitude}');
       if (updateHistory) {
         locationHistory.add(LatLng(position.latitude, position.longitude));
+        print('Location history updated: ${locationHistory.length} points');
         if (locationHistory.length > 50) {
           locationHistory.removeAt(0);
         }

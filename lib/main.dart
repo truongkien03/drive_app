@@ -11,6 +11,7 @@ import 'services/driver_fcm_service.dart';
 import 'services/navigation_service.dart';
 import 'services/location_service.dart'; // Add LocationService
 import 'services/notification_service.dart'; // Add NotificationService
+import 'services/background_proximity_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ void main() async {
   await DriverFCMService.initialize();
   await LocationService.initialize(); // Initialize LocationService
   await NotificationService.initialize(); // Initialize NotificationService
+  await initializeBackgroundProximityService();
 
   runApp(const MyApp());
 }

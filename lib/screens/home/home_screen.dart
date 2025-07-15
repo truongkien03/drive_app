@@ -80,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
           16.0,
         );
         print('📍 Map moved to current position: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
-      });
+    });
     }
   }
 
@@ -160,14 +160,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _locationUpdateTimer = Timer.periodic(Duration(seconds: 5), (timer) async {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.isOnline) {
-        await _logicService.getCurrentLocation();
+        await _logicService.getCurrentLocation(updateHistory: true); // luôn update history
         setState(() {
           _currentPosition = _logicService.currentPosition;
+          _locationHistory = List.from(_logicService.locationHistory);
         });
         await _sendLocationToFirebase();
       } else {
         setState(() {
           _locationStatus = 'Tài xế offline - dừng tracking';
+          _locationHistory = List.from(_logicService.locationHistory);
         });
         timer.cancel();
       }
@@ -202,12 +204,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadOrdersOnce() async {
     try {
-      final orders = await _logicService.getOrdersWithCache();
-      if (orders == null) {
+      final api = ApiService();
+      final response = await api.getDriverOrders();
+      if (!response.success || response.data == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('❌ Lỗi tải đơn hàng'),
+              content: Text('❌ Lỗi tải đơn hàng: ${response.message ?? "Không rõ lỗi"}'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 3),
             ),
@@ -215,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         return;
       }
-      _activeOrders = orders;
+      _activeOrders = response.data;
       _hasLoadedOrders = true;
       _arrivedOrders.clear();
       if (mounted) {
@@ -231,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Lỗi kết nối: $e'),
+            content: Text('❌ Lỗi kết nối: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
@@ -386,9 +389,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Hàm kiểm tra khoảng cách đến địa chỉ giao hàng (sử dụng dữ liệu đã load)
+  /// _toggleAutoProximityChecking
   Future<void> _checkProximityToDestination() async {
     try {
-      print('🎯 Bắt đầu kiểm tra khoảng cách...');
+      print('Bắt đầu kiểm tra khoảng cách...');
 
       // Kiểm tra xem đã load đơn hàng chưa
       if (!_hasLoadedOrders || _activeOrders == null) {
@@ -396,17 +400,17 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Lấy vị trí hiện tại
-      if (_currentPosition == null) {
-        await _logicService.getCurrentLocation();
-      }
-
-      if (_currentPosition == null) {
-        print('❌ Không thể lấy vị trí hiện tại');
-        return;
-      }
-
-      print('📍 Vị trí hiện tại: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
+      // // Lấy vị trí hiện tại
+      // if (_currentPosition == null) {
+      //   _currentPosition = await _logicService.getCurrentLocation();
+      // }
+      //
+      // if (_currentPosition == null) {
+      //   print('❌ Không thể lấy vị trí hiện tại');
+      //   return;
+      // }
+      //
+      // print('📍 Vị trí hiện tại: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
 
       // Debug: In ra tất cả đơn hàng và status code
       print('📋 Tổng số đơn hàng: ${_activeOrders!.length}');
@@ -415,7 +419,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // Lọc đơn hàng có thể kiểm tra khoảng cách
-      final activeDeliveryOrders = _activeOrders!.where((order) => 
+      final activeDeliveryOrders = _activeOrders!.where((order) =>
         _canCheckProximity(order.statusCode)
       ).toList();
 
@@ -426,6 +430,21 @@ class _HomeScreenState extends State<HomeScreen> {
           final statusText = _getStatusText(order.statusCode);
           print('   - Đơn hàng ${order.id}: status_code = ${order.statusCode} ($statusText)');
         }
+        // Dừng kiểm tra khoảng cách tự động
+        if (_isAutoProximityChecking) {
+          _isAutoProximityChecking = false;
+          _proximityCheckTimer?.cancel();
+          _proximityCheckTimer = null;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('⏹️ Đã dừng kiểm tra khoảng cách tự động (không còn đơn hàng)'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
         return;
       }
 
@@ -434,7 +453,20 @@ class _HomeScreenState extends State<HomeScreen> {
       // Kiểm tra từng đơn hàng
       for (final order in activeDeliveryOrders) {
         print('🚚 Kiểm tra đơn hàng ${order.id} (trạng thái: ${order.statusCode})');
-        await _logicService.getCurrentLocation();
+        _currentPosition = await _logicService.getCurrentLocation(updateHistory: true); // luôn update history
+        setState(() {
+          _locationHistory = List.from(_logicService.locationHistory);
+        });
+        if (_currentPosition != null) {
+          try {
+            _mapController.move(
+              LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+              16.0,
+            );
+          } catch (e) {
+            // Có thể _mapController chưa sẵn sàng, bỏ qua lỗi
+          }
+        }
         // Tính khoảng cách từ vị trí hiện tại đến địa chỉ giao hàng
         double distance = _calculateDistance(
           _currentPosition!.latitude,
@@ -448,8 +480,8 @@ class _HomeScreenState extends State<HomeScreen> {
         print('   Tọa độ: ${order.toAddress.lat}, ${order.toAddress.lon}');
 
         // Nếu khoảng cách <= 15m và chưa được đánh dấu là đã tới
-        if (distance <= 15.0 && !_arrivedOrders.contains(order.id)) {
-          print('🎉 ĐÃ TỚI! - Đơn hàng ${order.id}');
+        if (distance <= 50.0 && !_arrivedOrders.contains(order.id)) {
+          print('   ĐÃ TỚI! - Đơn hàng ${order.id}');
           print('   Khách hàng: ${order.customer.name} - ${order.customer.phone}');
           print('   Khoảng cách: ${distance.toStringAsFixed(2)}m');
           print('   Địa chỉ: ${order.toAddress.desc}');
@@ -457,7 +489,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Đánh dấu đơn hàng này đã được xử lý
           _arrivedOrders.add(order.id);
 
-          // Chuyển sang trang chụp ảnh chứng minh giao hàng
+          // Không clear _locationHistory ở đây để giữ đường đi
           if (mounted) {
             Navigator.push(
               context,
@@ -465,7 +497,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 builder: (context) => ProofOfDeliveryScreen(
                   order: order,
                   onOrderCompleted: () {
-                    // Refresh dữ liệu khi đơn hàng hoàn thành
                     _loadOrdersOnce();
                   },
                 ),
@@ -477,22 +508,22 @@ class _HomeScreenState extends State<HomeScreen> {
           await _updateOrderArrivedStatus(order.id, distance);
 
           // Hiển thị thông báo trên UI
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('🎉 ĐÃ TỚI địa chỉ giao hàng!\nKhoảng cách: ${distance.toStringAsFixed(1)}m\nKhách hàng: ${order.customer.name}'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 5),
-                action: SnackBarAction(
-                  label: 'Chi tiết',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    // Có thể mở màn hình chi tiết đơn hàng
-                  },
-                ),
-              ),
-            );
-          }
+          // if (mounted) {
+          //   ScaffoldMessenger.of(context).showSnackBar(
+          //     SnackBar(
+          //       content: Text('🎉 ĐÃ TỚI địa chỉ giao hàng!\nKhoảng cách: ${distance.toStringAsFixed(1)}m\nKhách hàng: ${order.customer.name}'),
+          //       backgroundColor: Colors.green,
+          //       duration: Duration(seconds: 5),
+          //       action: SnackBarAction(
+          //         label: 'Chi tiết',
+          //         textColor: Colors.white,
+          //         onPressed: () {
+          //           // Có thể mở màn hình chi tiết đơn hàng
+          //         },
+          //       ),
+          //     ),
+          //   );
+          // }
         }
       }
 
@@ -509,32 +540,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _proximityCheckTimer = null;
       _isAutoProximityChecking = false;
       
-      print('⏹️ Đã dừng kiểm tra khoảng cách tự động');
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('⏹️ Đã dừng kiểm tra khoảng cách tự động'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+
     } else {
       // Kiểm tra xem đã load đơn hàng chưa
       if (!_hasLoadedOrders) {
         print('📦 Chưa có dữ liệu đơn hàng, đang tải...');
-        
-        // Hiển thị thông báo đang tải
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('📦 Đang tải dữ liệu đơn hàng...'),
-              backgroundColor: Colors.blue,
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
         
         // Load đơn hàng trước
         await _loadOrdersOnce();
@@ -545,10 +555,11 @@ class _HomeScreenState extends State<HomeScreen> {
           return;
         }
       }
-      
+
+      await _loadOrdersOnce();
+
       // Bật chế độ tự động
       _isAutoProximityChecking = true;
-      print("🎯 Bắt đầu kiểm tra khoảng cách tự động");
       
       // Chạy kiểm tra ngay lập tức
       _checkProximityToDestination();
@@ -556,7 +567,6 @@ class _HomeScreenState extends State<HomeScreen> {
       // Thiết lập timer chạy mỗi 2 giây
       _proximityCheckTimer = Timer.periodic(Duration(seconds: 2), (timer) {
         if (_isAutoProximityChecking) {
-          print("📏 Đang tính khoảng cách...");
           _checkProximityToDestination();
         } else {
           timer.cancel();
@@ -570,7 +580,7 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(
             content: Text('▶️ Đã bật kiểm tra khoảng cách tự động (mỗi 2 giây)'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: Duration(seconds: 1),
           ),
         );
       }
@@ -628,77 +638,71 @@ class _HomeScreenState extends State<HomeScreen> {
               // Map with GPS tracking
               _isInitialLocationLoaded && _currentPosition != null
                   ? FlutterMap(
-                      mapController: _mapController,
-                      options: MapOptions(
+                mapController: _mapController,
+                options: MapOptions(
                         center: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                        zoom: 16.0,
-                        maxZoom: 19.0,
-                        minZoom: 10.0,
+                  zoom: 16.0,
+                  maxZoom: 19.0,
+                  minZoom: 10.0,
+                ),
+                children: [
+                  // Map tiles
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.drive_app',
+                  ),
+                  // Vẽ đường đi từ vị trí hiện tại đến điểm giao hàng tiếp theo
+                  if (_currentPosition != null && _activeOrders != null) ...{
+                    // Lấy đơn hàng đầu tiên đang giao
+                    if (_activeOrders!.where((order) => _canCheckProximity(order.statusCode)).isNotEmpty)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: [
+                              LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                              LatLng(
+                                _activeOrders!.where((order) => _canCheckProximity(order.statusCode)).first.toAddress.lat,
+                                _activeOrders!.where((order) => _canCheckProximity(order.statusCode)).first.toAddress.lon,
+                              ),
+                            ],
+                            strokeWidth: 4.0,
+                            color: Colors.blue,
+                          ),
+                        ],
                       ),
-                      children: [
-                        // Map tiles
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.example.drive_app',
-                        ),
-                        // Vẽ đường đi nếu có destination
-                        if (_currentPosition != null && widget.destination != null)
-                          PolylineLayer(
-                            polylines: [
-                              Polyline(
-                                points: [
-                                  LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                                  widget.destination!,
-                                ],
-                                strokeWidth: 4.0,
-                                color: Colors.blue,
-                              ),
-                            ],
-                          ),
+                  },
 
-                        // Location history trail
-                        if (_locationHistory.length > 1)
-                          PolylineLayer(
-                            polylines: [
-                              Polyline(
-                                points: _locationHistory,
-                                strokeWidth: 3.0,
-                                color: Colors.blue.withOpacity(0.6),
-                              ),
-                            ],
-                          ),
-
-                        // MarkerLayer: vị trí tài xế + vị trí khách hàng
-                        MarkerLayer(
-                          markers: [
-                            // Marker vị trí hiện tại của tài xế
-                            if (_currentPosition != null)
-                              Marker(
-                                point: LatLng(_currentPosition!.latitude,
-                                    _currentPosition!.longitude),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 3),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 6,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    Icons.navigation,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                  width: 30,
-                                  height: 30,
+                  // MarkerLayer: vị trí tài xế + vị trí khách hàng
+                  MarkerLayer(
+                    markers: [
+                      // Marker vị trí hiện tại của tài xế
+                      if (_currentPosition != null)
+                        Marker(
+                          point: LatLng(_currentPosition!.latitude,
+                              _currentPosition!.longitude),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 6,
+                                  offset: Offset(0, 2),
                                 ),
-                              ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.navigation,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            width: 30,
+                            height: 30,
+                          ),
+                        ),
                             // Marker vị trí cần đến (destination)
                             if (widget.destination != null)
                               Marker(
@@ -711,46 +715,46 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               ),
-                            // Marker vị trí khách hàng (toAddress của các đơn hàng đang giao)
-                            if (_activeOrders != null && _activeOrders!.isNotEmpty)
-                              ..._activeOrders!
-                                .where((order) => _canCheckProximity(order.statusCode))
-                                .map((order) => Marker(
-                                      point: LatLng(order.toAddress.lat, order.toAddress.lon),
-                                      child: Container(
-                                        child: Icon(
-                                          Icons.location_on,
-                                          color: Colors.red,
-                                          size: 32,
-                                        ),
-                                      ),
-                                    ))
-                                .toList(),
+                      // Marker vị trí khách hàng (toAddress của các đơn hàng đang giao)
+                      if (_activeOrders != null && _activeOrders!.isNotEmpty)
+                        ..._activeOrders!
+                          .where((order) => _canCheckProximity(order.statusCode))
+                          .map((order) => Marker(
+                                point: LatLng(order.toAddress.lat, order.toAddress.lon),
+                                child: Container(
+                                  child: Icon(
+                                    Icons.location_on,
+                                    color: Colors.red,
+                                    size: 32,
+                                  ),
+                                ),
+                              ))
+                          .toList(),
 
-                            // Các marker mẫu khác (nếu cần)
-                            Marker(
-                              point: LatLng(21.0245, 105.8412),
-                              child: Container(
-                                child: Icon(
-                                  Icons.local_shipping,
-                                  color: Colors.orange,
-                                  size: 30,
-                                ),
-                              ),
-                            ),
-                            Marker(
-                              point: LatLng(21.0325, 105.8482),
-                              child: Container(
-                                child: Icon(
-                                  Icons.delivery_dining,
-                                  color: Colors.green,
-                                  size: 30,
-                                ),
-                              ),
-                            ),
-                          ],
+                      // Các marker mẫu khác (nếu cần)
+                      Marker(
+                        point: LatLng(21.0245, 105.8412),
+                        child: Container(
+                          child: Icon(
+                            Icons.local_shipping,
+                            color: Colors.orange,
+                            size: 30,
+                          ),
                         ),
-                      ],
+                      ),
+                      Marker(
+                        point: LatLng(21.0325, 105.8482),
+                        child: Container(
+                          child: Icon(
+                            Icons.delivery_dining,
+                            color: Colors.green,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                     )
                   : Container(
                       // Hiển thị loading khi chưa có vị trí
@@ -793,7 +797,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-                    ),
+              ),
 
               // GPS Status Panel (top)
               Positioned(
@@ -1146,7 +1150,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _currentPosition = position;
         _isInitialLocationLoaded = true; // Đánh dấu vị trí đã được load
-        // _lastUpdateTime = DateTime.now().toString().substring(11, 19);
+        _locationHistory = List.from(_logicService.locationHistory); // Đồng bộ lịch sử
       });
       _mapController.move(
         LatLng(position.latitude, position.longitude),

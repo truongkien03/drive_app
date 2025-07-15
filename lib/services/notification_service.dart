@@ -31,7 +31,7 @@ class NotificationService {
         provisional: false,
       );
       
-      print('🔔 Trạng thái quyền thông báo: ${settings.authorizationStatus}');
+      print('🔔 Trạng thái quyền thông báo:  [32m [1m [4m${settings.authorizationStatus} [0m');
       
       // Lấy FCM token
       _currentToken = await _messaging!.getToken();
@@ -39,6 +39,18 @@ class NotificationService {
       
       // Thiết lập local notifications
       await _setupLocalNotifications();
+
+      // Tạo notification channel cho foreground service (proximity_service)
+      const AndroidNotificationChannel proximityChannel = AndroidNotificationChannel(
+        'proximity_service',
+        'Dịch vụ kiểm tra khoảng cách',
+        description: 'Thông báo foreground cho dịch vụ kiểm tra vị trí giao hàng',
+        importance: Importance.high,
+      );
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(proximityChannel);
+      print('✅ Đã tạo notification channel proximity_service');
       
       // Lắng nghe thông báo khi app đang mở
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);

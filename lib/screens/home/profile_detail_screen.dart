@@ -163,29 +163,29 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ),
             child: CircleAvatar(
               radius: Dimension.width50,
-              backgroundColor: Colors.white,
-              child: driver.avatar != null && driver.avatar!.isNotEmpty
-                  ? ClipOval(
-                      child: Image.network(
-                        driver.avatar!,
+            backgroundColor: Colors.white,
+            child: driver.avatar != null && driver.avatar!.isNotEmpty
+                ? ClipOval(
+                    child: Image.network(
+                      driver.avatar!,
                         width: Dimension.width100,
                         height: Dimension.height100,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
                           return Icon(
-                            Icons.person,
+                          Icons.person,
                             size: Dimension.icon24 * 2.5,
-                            color: Colors.grey,
-                          );
-                        },
-                      ),
-                    )
-                  : Icon(
-                      Icons.person,
-                      size: Dimension.icon24 * 2.5,
-                      color: Colors.grey,
+                          color: Colors.grey,
+                        );
+                      },
                     ),
-            ),
+                  )
+                  : Icon(
+                    Icons.person,
+                      size: Dimension.icon24 * 2.5,
+                    color: Colors.grey,
+                    ),
+                  ),
           ),
           SizedBox(height: Dimension.height12),
 
@@ -281,13 +281,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 ),
                 SizedBox(width: Dimension.width8),
                 Text(
-                  'Thông tin cá nhân',
-                  style: TextStyle(
+              'Thông tin cá nhân',
+              style: TextStyle(
                     fontSize: Dimension.font_size18,
-                    fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600,
                     color: AppColor.textPrimary,
                   ),
-                ),
+              ),
               ],
             ),
           ),
@@ -352,13 +352,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 ),
                 SizedBox(width: Dimension.width8),
                 Text(
-                  'Trạng thái tài khoản',
-                  style: TextStyle(
+              'Trạng thái tài khoản',
+              style: TextStyle(
                     fontSize: Dimension.font_size18,
-                    fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600,
                     color: AppColor.textPrimary,
                   ),
-                ),
+              ),
               ],
             ),
           ),
@@ -424,13 +424,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 ),
                 SizedBox(width: Dimension.width8),
                 Text(
-                  'Tài liệu xác minh',
-                  style: TextStyle(
+              'Tài liệu xác minh',
+              style: TextStyle(
                     fontSize: Dimension.font_size18,
-                    fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600,
                     color: AppColor.textPrimary,
                   ),
-                ),
+              ),
               ],
             ),
           ),
@@ -554,13 +554,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                 ),
                 SizedBox(width: Dimension.width8),
                 Text(
-                  'Thống kê',
-                  style: TextStyle(
+              'Thống kê',
+              style: TextStyle(
                     fontSize: Dimension.font_size18,
-                    fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600,
                     color: AppColor.textPrimary,
                   ),
-                ),
+              ),
               ],
             ),
           ),

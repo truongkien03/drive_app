@@ -177,17 +177,17 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                 padding: EdgeInsets.all(Dimension.width16),
                 child: Form(
                   key: _formKey,
-                  child: Column(
+                child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  children: [
                       Text(
                         'Thông tin chuyến đi',
-                        style: TextStyle(
+                      style: TextStyle(
                           fontSize: Dimension.font_size16,
-                          fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                           color: AppColor.textPrimary,
-                        ),
                       ),
+                    ),
                       SizedBox(height: Dimension.height16),
                       
                       // From location
@@ -202,7 +202,7 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                           }
                           return null;
                         },
-                      ),
+                    ),
                       
                       SizedBox(height: Dimension.height12),
                       
@@ -239,8 +239,8 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                                 }
                                 return null;
                               },
-                            ),
-                          ),
+                      ),
+                    ),
                           SizedBox(width: Dimension.width12),
                           Expanded(
                             child: _buildTextField(
@@ -291,7 +291,7 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                               label: 'Giá/ghế (VNĐ)',
                               icon: Icons.money,
                               iconColor: Colors.green,
-                              keyboardType: TextInputType.number,
+                      keyboardType: TextInputType.number,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Vui lòng nhập giá';
@@ -302,7 +302,7 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                                 return null;
                               },
                             ),
-                          ),
+                      ),
                         ],
                       ),
                       
@@ -313,15 +313,15 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _createTrip,
-                          style: ElevatedButton.styleFrom(
+                      style: ElevatedButton.styleFrom(
                             backgroundColor: AppColor.primary,
-                            foregroundColor: Colors.white,
+                        foregroundColor: Colors.white,
                             padding: EdgeInsets.symmetric(vertical: Dimension.height16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(Dimension.radius12),
                             ),
                             elevation: 2,
-                          ),
+                      ),
                           child: _isLoading
                               ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -352,8 +352,8 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                                         fontSize: Dimension.font_size16,
                                         fontWeight: FontWeight.bold,
                                       ),
-                                    ),
-                                  ],
+                    ),
+                  ],
                                 ),
                         ),
                       ),
@@ -375,7 +375,7 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                 ),
                 SizedBox(width: Dimension.width8),
                 Text(
-                  'Chuyến đi đã tạo',
+              'Chuyến đi đã tạo',
                   style: TextStyle(
                     fontSize: Dimension.font_size18,
                     fontWeight: FontWeight.bold,
@@ -544,6 +544,8 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                 fontSize: Dimension.font_size16,
                 color: isCompleted ? Colors.grey : AppColor.textPrimary,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -557,11 +559,14 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                       color: Colors.grey.shade600,
                     ),
                     SizedBox(width: Dimension.width4),
-                    Text(
-                      '${trip['date']} ${trip['time']}',
-                      style: TextStyle(
-                        fontSize: Dimension.font_size14,
-                        color: Colors.grey.shade600,
+                    Flexible(
+                      child: Text(
+                        '${trip['date']} ${trip['time']}',
+                        style: TextStyle(
+                          fontSize: Dimension.font_size14,
+                          color: Colors.grey.shade600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -575,11 +580,14 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                       color: Colors.grey.shade600,
                     ),
                     SizedBox(width: Dimension.width4),
-                    Text(
-                      'Còn ${trip['seats']} ghế trống',
-                      style: TextStyle(
-                        fontSize: Dimension.font_size14,
-                        color: Colors.grey.shade600,
+                    Flexible(
+                      child: Text(
+                        'Còn ${trip['seats']} ghế trống',
+                        style: TextStyle(
+                          fontSize: Dimension.font_size14,
+                          color: Colors.grey.shade600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     SizedBox(width: Dimension.width8),
@@ -589,12 +597,15 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                       color: Colors.grey.shade600,
                     ),
                     SizedBox(width: Dimension.width4),
-                    Text(
-                      '${trip['price'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} VNĐ',
-                      style: TextStyle(
-                        fontSize: Dimension.font_size14,
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        '${trip['price'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} VNĐ',
+                        style: TextStyle(
+                          fontSize: Dimension.font_size14,
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -610,7 +621,7 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                     decoration: BoxDecoration(
                       color: Colors.green,
                       borderRadius: BorderRadius.circular(Dimension.radius8),
-                    ),
+                      ),
                     child: Text(
                       'Hoàn thành',
                       style: TextStyle(
@@ -635,16 +646,16 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                           break;
                       }
                     },
-                    itemBuilder: (context) => [
+                        itemBuilder: (context) => [
                       PopupMenuItem(
-                        value: 'edit',
+                            value: 'edit',
                         child: Row(
                           children: [
                             Icon(Icons.edit, size: Dimension.icon16),
                             SizedBox(width: Dimension.width8),
                             Text('Chỉnh sửa'),
                           ],
-                        ),
+                          ),
                       ),
                       PopupMenuItem(
                         value: 'share',
@@ -657,18 +668,18 @@ class _TripSharingScreenState extends State<TripSharingScreen> {
                         ),
                       ),
                       PopupMenuItem(
-                        value: 'delete',
+                            value: 'delete',
                         child: Row(
                           children: [
                             Icon(Icons.delete, size: Dimension.icon16, color: Colors.red),
                             SizedBox(width: Dimension.width8),
                             Text('Xóa', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
+                        ],
+              ),
+            ),
+          ],
+        ),
+      ),
         );
       },
     );
