@@ -21,6 +21,10 @@ class ApiService {
     _token = token;
   }
 
+  void clearToken() {
+    _token = null;
+  }
+
   String? get token => _token;
 
   Map<String, String> get _headers {
@@ -34,6 +38,109 @@ class ApiService {
     }
 
     return headers;
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> declineOrder(
+      int orderId, String? reason) async {
+    try {
+      print('❌ Declining order ID: $orderId with reason: $reason');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderDecline}/$orderId/decline');
+
+      final response = await http.post(
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderDecline}/$orderId/decline'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+          'reason': reason ?? 'Driver declined',
+        }),
+      );
+
+      print('📊 Decline Order Response Status: ${response.statusCode}');
+      print('📄 Decline Order Response Body: ${response.body}');
+
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        }
+      }
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          print('✅ Order declined successfully');
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('⚠️ Server returned empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Decline Order Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> acceptOrder(int orderId) async {
+    try {
+      print('✅ Accepting order ID: $orderId');
+      print(
+          '🔗 Request URL: ${AppConfig.baseUrl}${AppConfig.orderAccept}/$orderId/accept');
+      print('🔑 Headers: $_headers');
+
+      final response = await http.post(
+        Uri.parse(
+            '${AppConfig.baseUrl}${AppConfig.orderAccept}/$orderId/accept'),
+        headers: _headers,
+        body: jsonEncode({
+          'order_id': orderId,
+        }),
+      );
+
+      print('📊 Accept Order Response Status: ${response.statusCode}');
+      print('📄 Accept Order Response Body: ${response.body}');
+      print('📋 Request Headers Sent: ${response.request?.headers}');
+
+      if (response.statusCode >= 400) {
+        print('❌ HTTP Error ${response.statusCode}');
+        if (response.statusCode == 401) {
+          print('🔐 Authentication failed - check token');
+        } else if (response.statusCode == 404) {
+          print('🔍 Order not found or endpoint incorrect');
+        } else if (response.statusCode == 422) {
+          print('📝 Validation error - check request body');
+        }
+      }
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          print('🎉 Order accepted successfully');
+          return ApiResponse.success(responseData['data'] ?? responseData);
+        } else {
+          print(
+              '❌ Server error: ${responseData['message'] ?? 'Unknown error'}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('⚠️ Server returned empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Accept Order Error: ${e.toString()}');
+      print('🔍 Error Type: ${e.runtimeType}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
   }
 
   // Send OTP for driver registration
@@ -1556,6 +1663,42 @@ class ApiService {
       }
     } catch (e) {
       print('💥 Get Delivery Details Error: ${e.toString()}');
+      return ApiResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // Change driver online status (set status = 1, delivering_order_id = null)
+  Future<ApiResponse<Driver>> changeDriverOnlineStatus() async {
+    try {
+      print('🟢 Changing driver status to ONLINE (free)...');
+      print('🎯 POST  [32m [1m [4m [0m [39m [22m${AppConfig.baseUrl}${AppConfig.driverChangeOnline}');
+      print('🔑 Using token: $_token');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.driverChangeOnline}'),
+        headers: _headers,
+      );
+
+      print('📊 Change Online Status Response Status: ${response.statusCode}');
+      print('📄 Change Online Status Response Body: ${response.body}');
+
+      if (response.body.isNotEmpty) {
+        final responseData = jsonDecode(response.body);
+        print('🔍 Parsed Change Online Status Response: $responseData');
+
+        if (response.statusCode == 200 && responseData['data'] != null) {
+          print('✅ Driver status set to ONLINE (free) successfully');
+          return ApiResponse.success(Driver.fromJson(responseData['data']));
+        } else {
+          print('❌ Change Online Status Failed - Status: ${response.statusCode}');
+          return ApiResponse.fromJson(responseData, null);
+        }
+      } else {
+        print('❌ Change Online Status Failed - Empty response');
+        return ApiResponse.error('Server returned empty response');
+      }
+    } catch (e) {
+      print('💥 Change Online Status Error: ${e.toString()}');
       return ApiResponse.error('Network error: ${e.toString()}');
     }
   }

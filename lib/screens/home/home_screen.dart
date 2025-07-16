@@ -545,10 +545,10 @@ class _HomeScreenState extends State<HomeScreen> {
       // Kiểm tra xem đã load đơn hàng chưa
       if (!_hasLoadedOrders) {
         print('📦 Chưa có dữ liệu đơn hàng, đang tải...');
-        
+
         // Load đơn hàng trước
-        await _loadOrdersOnce();
-        
+
+
         // Kiểm tra lại sau khi load
         if (!_hasLoadedOrders) {
           print('❌ Không thể tải đơn hàng, không thể bật kiểm tra tự động');
@@ -1037,28 +1037,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Icon(_isAutoProximityChecking ? Icons.stop : Icons.location_on),
                     ),
 
-                    SizedBox(height: 8,),
-
-                    // Nút test notification
-                    FloatingActionButton(
-                      heroTag: "test_notification",
-                      mini: true,
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      onPressed: () async {
-                        await NotificationService.testLocalNotification();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('🔔 Test notification sent!'),
-                              backgroundColor: Colors.orange,
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      },
-                      child: Icon(Icons.notifications),
-                    ),
 
                     SizedBox(height: 8,),
                     FloatingActionButton(

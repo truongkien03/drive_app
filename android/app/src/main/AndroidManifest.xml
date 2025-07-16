@@ -44,6 +44,9 @@
     <!-- Optional: for better location accuracy -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
+    <!-- Android 13+ (API 33+) notification permission -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:label="drive_app"
         android:name="${applicationName}"
@@ -94,7 +97,8 @@
             android:exported="false"
             android:permission="android.permission.FOREGROUND_SERVICE"
             android:foregroundServiceType="location"
-            tools:replace="android:exported" />
+            tools:node="replace"
+            tools:replace="android:exported,android:foregroundServiceType" />
 
     </application>
 </manifest>

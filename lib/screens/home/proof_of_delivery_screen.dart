@@ -23,6 +23,34 @@ class ProofOfDeliveryScreen extends StatefulWidget {
 class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
   File? _imageFile;
   bool _isSubmitting = false;
+  bool _isRefreshing = false;
+
+  Future<void> _loadDriverProfile() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.refreshDriverProfile();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải thông tin: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
 
   Future<void> openMap(double lat, double lon, {BuildContext? context}) async {
     final googleMapsDirUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lon');
@@ -95,6 +123,20 @@ class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
         if (response.success) {
           if (mounted) {
             print('✅ Đã xác nhận giao hàng thành công!');
+            // Gọi API cập nhật trạng thái shipper về online/free
+            final onlineStatusResponse = await api.changeDriverOnlineStatus();
+            if (!onlineStatusResponse.success) {
+              print('❌ Lỗi cập nhật trạng thái online: ${onlineStatusResponse.message}');
+              // Có thể hiển thị thông báo lỗi nếu muốn
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('❌ Lỗi cập nhật trạng thái online: ${onlineStatusResponse.message ?? 'Không xác định'}'),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+            _loadDriverProfile();
             
             // Gọi callback nếu có
             widget.onOrderCompleted?.call();

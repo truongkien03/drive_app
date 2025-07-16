@@ -13,9 +13,10 @@ Future<void> initializeBackgroundProximityService() async {
   await service.configure(
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
-      autoStart: false, // Không tự động start
+      autoStart: false,
       isForegroundMode: true,
       notificationChannelId: 'proximity_service',
+      foregroundServiceNotificationId: 888, // BẮT BUỘC
       initialNotificationTitle: 'Đang kiểm tra vị trí giao hàng',
       initialNotificationContent: 'Dịch vụ kiểm tra khoảng cách đang chạy...',
     ),
@@ -25,6 +26,7 @@ Future<void> initializeBackgroundProximityService() async {
       onBackground: onIosBackground,
     ),
   );
+
 }
 
 @pragma('vm:entry-point')

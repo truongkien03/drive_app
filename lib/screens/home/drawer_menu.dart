@@ -12,7 +12,7 @@ import 'invite_friends_screen.dart';
 import 'settings_screen.dart';
 import '../../test/gps_test_screen.dart';
 import '../auth/phone_input_screen.dart';
-import 'notification_test_screen.dart';
+// import 'notification_test_screen.dart';
 
 class DrawerMenu extends StatelessWidget {
   final VoidCallback? onLogout;
@@ -230,18 +230,7 @@ class DrawerMenu extends StatelessWidget {
                         );
                       },
                     ),
-                    buildMenuItem(
-                      icon: Icons.notifications,
-                      title: 'Test Notifications',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const NotificationTestScreen()),
-                        );
-                      },
-                    ),
+
                     buildMenuItem(
                       icon: Icons.logout,
                       title: 'Đăng xuất',

@@ -2,7 +2,7 @@ class AppConfig {
   // static const String baseUrl = 'http://10.0.2.2:8000/api';
   static const String baseUrl = 'https://united-summary-pigeon.ngrok-free.app/api';
   // TODO: Cập nhật URL khi ngrok tunnel thay đổi
-  // static const String baseUrl = 'https://your-new-ngrok-url.ngrok-free.app/api';
+  // static const String baseUrl = 'https://caring-talented-slug.ngrok-free.app/api';
   // Driver API endpoints
   static const String driverRegisterOtp = '/driver/register/otp';
   static const String driverRegister = '/driver/register';
@@ -22,6 +22,7 @@ class AppConfig {
   static const String driverOrdersArriving = '/driver/drive/order-pending/arriving-list';
   static const String driverOrdersCompleted = '/driver/drive/order-pending/completed-list';
   static const String driverOrdersCancelled = '/driver/drive/order-pending/cancelled-list';
+  static const String driverChangeOnline = '/driver/change-online-driver';
 
   // Statistics endpoints
   static const String driverStatistics = '/driver/statistics/shipper';
@@ -29,6 +30,11 @@ class AppConfig {
   // Delivery history endpoints
   static const String driverDeliveryHistory = '/driver/orders/delivery-history';
   static const String driverDeliveryDetails = '/driver/orders';
+
+  static const String orderAccept =
+      '/driver/orders'; // POST /driver/orders/{order}/accept
+  static const String orderDecline =
+      '/driver/orders'; // POST /driver/orders/{order}/decline
 
   // FCM endpoints
   static const String driverFCMToken = '/driver/fcm/token';

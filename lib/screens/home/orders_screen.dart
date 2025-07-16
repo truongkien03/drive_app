@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import '../../models/order.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_color.dart';
 import '../../providers/proximity_provider.dart';
@@ -15,6 +16,7 @@ import '../../services/location_order_service.dart';
 import 'package:geolocator/geolocator.dart'; // Added import for Position
 import 'package:flutter_background_service/flutter_background_service.dart'; // Added import for flutter_background_service
 import 'package:flutter_background_service_android/flutter_background_service_android.dart'; // Added import for flutter_background_service_android
+import '../../services/background_proximity_service.dart';
 
 class _OrderTab {
   final String label;
@@ -54,6 +56,7 @@ class OrdersScreen extends StatefulWidget {
 
 class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isRefreshing = false;
   // State cho từng tab
   List<Order> _ongoingOrders = [];
   List<Order> _arrivingOrders = [];
@@ -505,12 +508,24 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () async {
-                                // Bật background service
+                                // Đảm bảo cấu hình background proximity service trước khi start
+                                // await initializeBackgroundProximityService();
+                                // final service = FlutterBackgroundService();
+                                // final running = await service.isRunning();
+                                // print('FlutterBackgroundService is running: ' + running.toString());
+                                // if (running) {
+                                //   print('Stopping FlutterBackgroundService...');
+                                //   service.invoke("stopService");
+                                // }
+                                // print('Starting FlutterBackgroundService...');
+                                // await service.startService();
+                                // Mở Google Maps như cũ
                                 final service = FlutterBackgroundService();
                                 if (!(await service.isRunning())) {
+                                  print("Khơi chạy ngầm;");
                                   await service.startService();
                                 }
-                                // Mở Google Maps như cũ
+                                
                                 await openMap(order.toAddress.lat, order.toAddress.lon, context: context);
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1078,6 +1093,33 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
         ],
       ),
     );
+  }
+
+  Future<void> _loadDriverProfile() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.refreshDriverProfile();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải thông tin: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
   }
 
   @override

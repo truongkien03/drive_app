@@ -661,7 +661,7 @@ class AuthProvider extends ChangeNotifier {
 
       // Remove FCM token from server before logout (but don't wait too long)
       try {
-        await NotificationService.removeTokenFromServer().timeout(Duration(seconds: 5));
+        // await NotificationService.removeTokenFromServer().timeout(Duration(seconds: 5));
         print('✅ FCM token removed successfully');
       } catch (e) {
         print('⚠️ Failed to remove FCM token: $e');
@@ -737,12 +737,12 @@ class AuthProvider extends ChangeNotifier {
       print('🔔 Sending FCM token to server after login...');
       
       // Send FCM token using NotificationService
-      if (_token != null && NotificationService.isInitialized) {
-        await NotificationService.sendTokenToServer(_token!);
-      print('✅ FCM token sent successfully after login');
-      } else {
-        print('⚠️ Cannot send FCM token: token is null or NotificationService not initialized');
-      }
+      // if (_token != null && NotificationService.isInitialized) {
+      //   await NotificationService.sendTokenToServer(_token!);
+      // print('✅ FCM token sent successfully after login');
+      // } else {
+      //   print('⚠️ Cannot send FCM token: token is null or NotificationService not initialized');
+      // }
     } catch (e) {
       print('❌ Error sending FCM token after login: $e');
     }
