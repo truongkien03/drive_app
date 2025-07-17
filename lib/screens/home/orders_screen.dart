@@ -172,7 +172,7 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
   Color _statusColor(int statusCode) {
     switch (statusCode) {
       case 2:
-        return AppColor.primary;
+        return Colors.white;
       case 3:
         return Colors.orange;
       case 4:
@@ -180,7 +180,7 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
       case 5:
         return Colors.red;
       default:
-        return AppColor.textPrimary;
+        return Colors.white;
     }
   }
 
@@ -1133,7 +1133,7 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
           foregroundColor: Colors.white,
           bottom: TabBar(
             controller: _tabController,
-            labelColor: AppColor.primary,
+            labelColor: Colors.white,
             unselectedLabelColor: Colors.grey,
             indicatorColor: AppColor.primary,
             tabs: _tabs.map((tab) {

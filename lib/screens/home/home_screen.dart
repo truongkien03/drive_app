@@ -547,6 +547,7 @@ class _HomeScreenState extends State<HomeScreen> {
         print('📦 Chưa có dữ liệu đơn hàng, đang tải...');
 
         // Load đơn hàng trước
+        await _loadOrdersOnce();
 
 
         // Kiểm tra lại sau khi load
@@ -896,7 +897,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // Menu button overlay
               Positioned(
-                top: 120,
+                top: 150,
                 left: 16,
                 child: Builder(
                   builder: (context) => FloatingActionButton(
@@ -913,9 +914,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // Status card overlay - Thu nhỏ và di chuyển xuống thấp hơn
               Positioned(
-                bottom: 140,
-                left: 16,
-                right: 16,
+                bottom: 30,
+                left: 75,
+                right: 75,
                 child: Card(
                   elevation: 6,
                   shape: RoundedRectangleBorder(

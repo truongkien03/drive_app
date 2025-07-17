@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:462964419715:android:0ba6f30e5868f11a683fb6",
         "android_client_info": {
-          "package_name": "com.company.drive_app"
+          "package_name": "com.datn.delivery.driver"
         }
       },
       "oauth_client": [],
@@ -29,7 +29,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:462964419715:android:bcda0b26ccd4966f683fb6",
         "android_client_info": {
-          "package_name": "com.company.drive_app"
+          "package_name": "com.datn.delivery.user"
         }
       },
       "oauth_client": [],

@@ -85,7 +85,7 @@ class DrawerMenu extends StatelessWidget {
                           SizedBox(height: Dimension.height12),
                           // Name
                           Text(
-                            authProvider.driver?.name ?? 'Trương Xuân Kiên',
+                            authProvider.driver?.name ?? '',
                             style: TextStyle(
                               color: AppColor.textPrimary,
                               fontSize: Dimension.font_size16,

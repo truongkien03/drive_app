@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/app_theme.dart';
+import '../../utils/app_color.dart';
+import '../../utils/dimension.dart';
 import '../../config/app_config.dart';
 import '../home/home_screen.dart';
 
@@ -99,9 +100,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     if (success) {
       _startTimer();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Mã OTP đã được gửi lại'),
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColor.primary,
         ),
       );
     } else {
@@ -135,11 +136,12 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: AppColor.primary,
         title: const Text('Xác thực OTP'),
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(Dimension.width16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -148,18 +150,19 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               // Icon
               Icon(
                 Icons.sms,
-                size: 80,
-                color: AppColors.primary,
+                size: Dimension.icon48 * 1.6,
+                color: AppColor.primary,
               ),
 
               const SizedBox(height: 32),
 
               Text(
                 'Xác thực số điện thoại',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColor.textPrimary,
+                  fontSize: Dimension.font_size20,
+                ),
                 textAlign: TextAlign.center,
               ),
 
@@ -167,9 +170,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
               Text(
                 'Mã OTP đã được gửi đến\n${widget.phoneNumber}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                style: TextStyle(
+                  color: AppColor.textColor,
+                  fontSize: Dimension.font_size14,
+                ),
                 textAlign: TextAlign.center,
               ),
 
@@ -184,15 +188,15 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 animationType: AnimationType.fade,
                 pinTheme: PinTheme(
                   shape: PinCodeFieldShape.box,
-                  borderRadius: BorderRadius.circular(8),
-                  fieldHeight: 56,
-                  fieldWidth: 48,
+                  borderRadius: BorderRadius.circular(Dimension.radius8),
+                  fieldHeight: Dimension.height50,
+                  fieldWidth: Dimension.width50,
                   activeFillColor: Colors.white,
                   inactiveFillColor: Colors.white,
                   selectedFillColor: Colors.white,
-                  activeColor: AppColors.primary,
-                  inactiveColor: AppColors.border,
-                  selectedColor: AppColors.primary,
+                  activeColor: AppColor.primary,
+                  inactiveColor: AppColor.backgroundColor,
+                  selectedColor: AppColor.primary,
                 ),
                 enableActiveFill: true,
                 onCompleted: (value) {
@@ -203,16 +207,21 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 },
               ),
 
-              const SizedBox(height: 32),
+              SizedBox(height: Dimension.height30),
 
               // Verify button
               Consumer<AuthProvider>(
                 builder: (context, authProvider, child) {
                   return SizedBox(
                     width: double.infinity,
-                    height: 48,
+                    height: Dimension.height50,
                     child: ElevatedButton(
                       onPressed: authProvider.isLoading ? null : _verifyOTP,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColor.primary,
+                        foregroundColor: Colors.white,
+                        textStyle: TextStyle(fontSize: 16),
+                      ),
                       child: authProvider.isLoading
                           ? const SizedBox(
                               height: 20,
@@ -225,14 +234,14 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                             )
                           : const Text(
                               'Xác thực',
-                              style: TextStyle(fontSize: 16),
+                              style: TextStyle(fontSize: 16, color: Colors.white),
                             ),
                     ),
                   );
                 },
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: Dimension.height20),
 
               // Timer and resend
               Row(
@@ -241,23 +250,26 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                   if (!_canResend) ...[
                     Text(
                       'Gửi lại mã sau ',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                      style: TextStyle(
+                        color: AppColor.textColor,
+                        fontSize: Dimension.font_size14,
+                      ),
                     ),
                     Text(
                       _formatTime(_secondsRemaining),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: TextStyle(
+                        color: AppColor.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: Dimension.font_size14,
+                      ),
                     ),
                   ] else ...[
                     Text(
                       'Không nhận được mã? ',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                      style: TextStyle(
+                        color: AppColor.textColor,
+                        fontSize: Dimension.font_size14,
+                      ),
                     ),
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, child) {
@@ -285,8 +297,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                   child: Text(
                     'Thay đổi số điện thoại',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColor.textColor,
                       decoration: TextDecoration.underline,
+                      fontSize: Dimension.font_size14,
                     ),
                   ),
                 ),

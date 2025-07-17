@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/order2.dart';
+import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/distance_formatter.dart';
@@ -27,6 +29,35 @@ class _NewOrderDialogState extends State<NewOrderDialog>
   late Animation<double> _countdownAnimation;
 
   static const int _timeoutSeconds = 15; // 15 giây để tài xế quyết định
+  bool _isRefreshing = false;
+
+  Future<void> _loadDriverProfile() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.refreshDriverProfile();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải thông tin: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
 
   @override
   void initState() {
@@ -85,6 +116,7 @@ class _NewOrderDialogState extends State<NewOrderDialog>
             backgroundColor: Colors.green,
           ),
         );
+        _loadDriverProfile();
       } else {
         // Thất bại
         ScaffoldMessenger.of(context).showSnackBar(
